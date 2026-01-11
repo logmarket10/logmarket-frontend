@@ -1,0 +1,97 @@
+/* ==============================
+   LAYOUT BASE
+============================== */
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ==============================
+   SIDEBAR
+============================== */
+.sidebar {
+  width: 240px;
+  background: linear-gradient(180deg, #4F46E5, #6366F1);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 32px;
+}
+
+.sidebar-logo img {
+  width: 36px;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar nav a {
+  padding: 12px 14px;
+  border-radius: 10px;
+  color: #E0E7FF;
+  text-decoration: none;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.sidebar nav a:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+.sidebar nav a.active {
+  background: #FFFFFF;
+  color: #4F46E5;
+  font-weight: 700;
+}
+
+.logout {
+  margin-top: auto;
+  background: rgba(0,0,0,0.2);
+  border: none;
+  color: #fff;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+/* ==============================
+   MAIN
+============================== */
+.main {
+  flex: 1;
+  background: #F9FAFB;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==============================
+   TOPBAR
+============================== */
+.topbar {
+  height: 64px;
+  background: #FFFFFF;
+  border-bottom: 1px solid #E5E7EB;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  font-weight: 600;
+}
+
+/* ==============================
+   PAGE CONTENT
+============================== */
+#pageContent {
+  padding: 32px;
+}

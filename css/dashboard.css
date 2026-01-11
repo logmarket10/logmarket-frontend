@@ -1,0 +1,59 @@
+/* ==============================
+   DASHBOARD
+============================== */
+
+.page-title {
+  font-size: 26px;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+/* Cards na HORIZONTAL */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+}
+
+/* KPI CARD */
+.kpi-card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+}
+
+.kpi-title {
+  font-size: 13px;
+  color: #6B7280;
+}
+
+.kpi-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.kpi-card.danger strong {
+  color: #DC2626;
+}
+
+/* ALERTA */
+.alert {
+  margin-top: 32px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: #FEF2F2;
+  color: #991B1B;
+}
+
+.alert a {
+  margin-left: 8px;
+  font-weight: 700;
+  color: #7C2D12;
+}
+
+.hidden {
+  display: none;
+}

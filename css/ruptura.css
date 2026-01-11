@@ -1,0 +1,23 @@
+.ruptura-content {
+  padding-top: 10px;
+}
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-red {
+  background: #ef4444;
+}
+
+.status-orange {
+  background: #f59e0b;
+}
+
+.estoque-list {
+  font-size: 13px;
+  line-height: 1.5;
+}

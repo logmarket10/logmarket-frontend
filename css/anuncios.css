@@ -1,0 +1,144 @@
+/* =====================================================
+   ANÚNCIOS – AJUSTES ESPECÍFICOS (SEM QUEBRAR GLOBAL)
+===================================================== */
+
+/* A .pagebar global tem align-items:center.
+   Aqui anulamos isso APENAS na tela de anúncios */
+.pagebar.anuncios-pagebar-final{
+  display: flex;              /* garante override */
+  flex-direction: column;
+  align-items: stretch;       /* <<< ESSENCIAL: para não centralizar */
+  gap: 14px;
+  height: auto;               /* a pagebar global tem height:96px; aqui vira auto */
+  min-height: 96px;           /* mantém padrão */
+}
+
+/* =========================
+   LINHA 1 (TÍTULO + BUSCA + ÚLTIMA ATUALIZAÇÃO)
+========================= */
+.pagebar.anuncios-pagebar-final .anuncios-top-row{
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;  /* título encosta à esquerda */
+  gap: 18px;
+}
+
+/* Título */
+.pagebar.anuncios-pagebar-final .anuncios-top-row .pagebar-title{
+  font-size: 30px;
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+  margin-right: 12px;
+}
+
+/* Busca (maior, como no desenho) */
+.pagebar.anuncios-pagebar-final .anuncios-search{
+  flex: 1;
+  max-width: 520px;
+  min-width: 320px;
+}
+
+/* Última atualização vai para a DIREITA (empurra com margin-left:auto) */
+.pagebar.anuncios-pagebar-final .pagebar-last-sync{
+  margin-left: auto;          /* <<< ESSENCIAL: joga pro canto direito */
+  font-size: 13px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+/* =========================
+   LINHA 2 (FILTROS + BOTÕES + TOTAL)
+========================= */
+.pagebar.anuncios-pagebar-final .anuncios-bottom-row{
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Total não some: deixa “colado” à direita na mesma linha 2 */
+.pagebar.anuncios-pagebar-final .count-card{
+  margin-left: auto;          /* joga o card Total para a direita */
+}
+
+/* Estoque positivo (label) */
+.stock-filter{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #4F46E5;
+}
+.stock-filter input{ cursor: pointer; }
+
+/* =========================
+   BULK BAR – FICAR POR CIMA DE TUDO (SEM MEXER NO GLOBAL)
+========================= */
+#bulkBar.anuncios-bulk{
+  z-index: 70;                /* acima da pagebar (35) e do header (40) */
+}
+
+/* =========================
+   TABELA – SCROLL + HEADER FIXO
+========================= */
+.table-wrap.anuncios-table-wrap{
+  position: relative;
+  overflow: auto;
+  max-height: calc(100vh - 330px);
+}
+
+/* Header sticky */
+#tabelaAnuncios thead th{
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  z-index: 30;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+/* Checkbox alinhado */
+#tabelaAnuncios th:first-child,
+#tabelaAnuncios td:first-child{
+  width: 42px;
+  text-align: center;
+}
+
+/* Ações */
+.actions{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* =========================
+   RESPONSIVO
+========================= */
+@media (max-width: 1100px){
+  .pagebar.anuncios-pagebar-final .anuncios-top-row{
+    flex-wrap: wrap;
+  }
+
+  .pagebar.anuncios-pagebar-final .anuncios-search{
+    max-width: 100%;
+  }
+
+  .pagebar.anuncios-pagebar-final .pagebar-last-sync{
+    margin-left: 0; /* quebra para baixo no mobile */
+  }
+
+  .pagebar.anuncios-pagebar-final .count-card{
+    margin-left: 0; /* no mobile, não força direita */
+  }
+}
+button.loading {
+  opacity: 0.7;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}

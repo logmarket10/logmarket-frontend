@@ -1,0 +1,388 @@
+/* =====================================================
+   SKUs — CSS ISOLADO (PADRÃO ANÚNCIOS)
+   NÃO ALTERA app.css
+===================================================== */
+
+/* =========================
+   PAGEBAR SKU
+========================= */
+.pagebar.skus-pagebar-final {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  height: auto;
+  min-height: 96px;
+}
+
+/* Linha superior */
+.skus-top-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+}
+
+/* Busca */
+.skus-search {
+  flex: 1;
+  max-width: 900px;   /* 🔥 bem maior */
+  min-width: 420px;
+}
+
+/* =========================
+   BULK BAR
+   (usa o CSS global .anuncios-bulk)
+========================= */
+#bulkBar {
+  z-index: 50;
+}
+
+/* =========================
+   FORM FIXO (NOVO SKU)
+========================= */
+.skus-form-bar {
+  position: fixed;
+  top: calc(64px + 96px);
+  left: 240px;
+  right: 0;
+  background: #F9FAFB;
+  padding: 12px 22px;
+  z-index: 33;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+/* Card do formulário */
+.form-card {
+  background: #FFFFFF;
+  border-radius: 18px;
+  padding: 24px;
+  border: 1px solid #EEF2FF;
+  box-shadow: 0 20px 45px rgba(0,0,0,0.08);
+}
+
+/* Grid do form */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr 1fr auto;
+  gap: 14px;
+  align-items: center;
+}
+
+/* =========================
+   INPUTS
+========================= */
+.ui-input {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid #E5E7EB;
+  background: #F9FAFB;
+  font-size: 14px;
+}
+
+.ui-input:focus {
+  outline: none;
+  border-color: #4F46E5;
+  box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
+  background: #FFFFFF;
+}
+
+/* =========================
+   TABELA (SCROLL REAL)
+========================= */
+.table-wrap.skus-table-wrap {
+  position: fixed;
+  top: calc(64px + 96px + 140px); /* 🔥 aumenta espaço do form */
+  left: 240px;
+  right: 0;
+  bottom: 56px;
+  overflow: auto;
+  background: #FFFFFF;
+  border-radius: 16px;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.06);
+}
+/* =========================
+   TABELA
+========================= */
+#skuTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* Cabeçalho fixo */
+#skuTable thead th {
+  position: sticky;
+  top: 15px;
+  z-index: 40;              /* 🔥 MAIOR que form e bulk */
+  background: #FFFFFF;
+  border-bottom: 2px solid #E5E7EB;
+}
+
+/* Body */
+#skuTable tbody td {
+  padding: 14px;
+  border-bottom: 1px solid #EEF2FF;
+}
+
+#skuTable tbody tr:hover {
+  background: #F9FAFB;
+}
+
+/* Checkbox */
+#skuTable th:first-child,
+#skuTable td:first-child {
+  width: 44px;
+  text-align: center;
+}
+
+/* =========================
+   AÇÕES
+========================= */
+#skuTable .btn {
+  min-width: 90px;
+}
+
+#skuTable .btn-warning {
+  background: #ffea00;
+  color: #111827;
+  font-weight: 800;
+}
+
+#skuTable .btn-danger {
+  background: linear-gradient(90deg, #DC2626, #EF4444);
+  color: #FFFFFF;
+  font-weight: 800;
+}
+
+/* =========================
+   TOAST / MODAIS
+========================= */
+.toast-overlay {
+  z-index: 9999;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.form-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* =========================
+   RESPONSIVO
+========================= */
+@media (max-width: 1100px) {
+
+  .skus-top-row {
+    flex-wrap: wrap;
+  }
+
+ 
+
+  .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .skus-form-bar {
+    padding: 12px;
+  }
+}
+
+/* Bulk mais confortável */
+#bulkBar.anuncios-bulk {
+  padding: 0 28px;
+  gap: 18px;
+}
+
+/* Área de ações */
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Botões maiores no bulk */
+.bulk-actions .btn {
+  padding: 12px 18px;
+  min-width: 110px;
+}
+/* Joga o card para a direita */
+.skus-top-row .count-card {
+  margin-left: auto;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* =========================
+   BOTÃO EXCLUIR – BULK BAR
+========================= */
+#bulkBar .btn-danger {
+  background: linear-gradient(90deg, #DC2626, #EF4444);
+  color: #FFFFFF;
+  border: none;
+  font-weight: 800;
+}
+
+#bulkBar .btn-danger:hover {
+  filter: brightness(0.95);
+}
+
+/* =========================
+   MODAL (TOAST) – CENTRALIZAR BOTÕES
+========================= */
+#toastOverlay .toast-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: stretch;
+}
+
+#toastOverlay .toast-actions .btn {
+  flex: 1;
+  display: inline-flex;          /* garante alinhamento interno */
+  align-items: center;           /* centraliza vertical */
+  justify-content: center;       /* centraliza horizontal */
+  text-align: center;
+  line-height: 1;
+  padding: 12px 0;
+}
+
+/* garante que o texto do botão não “puxe” para esquerda */
+#toastOverlay .toast-actions .btn-danger,
+#toastOverlay .toast-actions .btn-muted {
+  text-indent: 0;
+}
+
+.toast.large {
+  max-width: 720px;
+}
+
+.csv-preview {
+  background: #0f172a;
+  color: #e5e7eb;
+  padding: 16px;
+  border-radius: 8px;
+  margin: 12px 0;
+  font-family: monospace;
+  font-size: 13px;
+  overflow-x: auto;
+}
+
+.csv-rules {
+  margin: 12px 0;
+  padding-left: 16px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.hint {
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* botoões importar e modelo */
+.import-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;          /* espaço entre os botões */
+  margin-left: 12px; /* separa do campo de busca */
+}
+
+.import-actions .btn {
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+/* ===============================
+   MODAL IMPORTAÇÃO – SCROLL
+=============================== */
+
+/* overlay já existente – mantém */
+.toast-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+/* modal */
+.toast.large {
+  background: #ffffff;
+  width: 90%;
+  max-width: 900px;
+
+  /* 🔴 ponto-chave */
+  max-height: 85vh;
+
+  display: flex;
+  flex-direction: column;
+
+  border-radius: 14px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25);
+  overflow: hidden; /* impede scroll externo */
+}
+
+/* título */
+.toast.large h3 {
+  padding: 20px 24px 10px;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* área da tabela */
+.toast.large .table-wrap {
+  padding: 0 24px;
+  overflow-y: auto;        /* ✅ SCROLL AQUI */
+  flex: 1;                 /* ocupa o espaço disponível */
+}
+
+/* tabela */
+.toast.large table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.toast.large thead th {
+  position: sticky;        /* cabeçalho fixo */
+  top: 0;
+  background: #ffffff;
+  z-index: 2;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* linhas */
+.toast.large tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* rodapé (botões) */
+.toast.large .toast-actions {
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #e5e7eb;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
