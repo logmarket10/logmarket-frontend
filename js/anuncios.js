@@ -12,7 +12,6 @@ const page = document.getElementById("pageContent");
 ========================= */
 page.innerHTML = `
 <section class="pagebar anuncios-pagebar-final">
-
   <div class="anuncios-top-row">
     <h1 class="pagebar-title">Anúncios</h1>
 
@@ -42,7 +41,9 @@ page.innerHTML = `
       <button data-status="sem_vinculo">Sem vínculo</button>
     </div>
 
-    <button id="btnSync" class="btn btn-primary">Atualizar anúncios</button>
+    <button id="btnSync" class="btn btn-primary">
+      Atualizar anúncios
+    </button>
 
     <div class="count-card">
       <span>Total</span>
@@ -51,16 +52,30 @@ page.innerHTML = `
   </div>
 </section>
 
+<section id="bulkBar" class="anuncios-bulk hidden">
+  <strong><span id="bulkCount">0</span> selecionados</strong>
+
+  <div class="bulk-actions">
+    <select id="bulkSkuSelect">
+      <option value="">Selecione o SKU</option>
+    </select>
+
+    <button id="bulkVincular" class="btn btn-primary">Vincular</button>
+    <button id="bulkDesvincular" class="btn btn-muted">Desvincular</button>
+    <button id="bulkCancelar" class="btn btn-muted">Cancelar</button>
+  </div>
+</section>
+
 <div class="table-wrap anuncios-table-wrap">
   <table id="tabelaAnuncios">
     <thead>
       <tr>
+        <th><input type="checkbox" id="checkAll"></th>
         <th>Código ML</th>
         <th>Anúncio</th>
-        <th>Tipo</th>
         <th>Status</th>
         <th>Estoque ML</th>
-        <th>SKU</th>
+        <th>SKU vinculado</th>
         <th>Ação</th>
       </tr>
     </thead>
@@ -70,32 +85,67 @@ page.innerHTML = `
 `;
 
 /* =========================
-   ESTADO
+   TOAST
 ========================= */
-let anuncios = [];
-let skus = [];
-let statusAtual = "todos";
+function showToast(arg1, arg2, arg3) {
+  let title = "";
+  let message = "";
+  let type = "info";
+
+  if (typeof arg1 === "object" && arg1 !== null) {
+    title = arg1.title || "";
+    message = arg1.message || "";
+    type = arg1.type || "info";
+  } else {
+    title = arg1 || "";
+    message = arg2 || "";
+    type = arg3 || "info";
+  }
+
+  const overlay = document.getElementById("toastOverlay");
+  const titleEl = document.getElementById("toastTitle");
+  const msgEl = document.getElementById("toastMessage");
+  const okBtn = document.getElementById("toastOk");
+
+  titleEl.textContent = title;
+  msgEl.textContent = message;
+  okBtn.textContent = "OK";
+  overlay.classList.remove("hidden");
+
+  okBtn.onclick = () => overlay.classList.add("hidden");
+  if (type === "loading") return;
+
+  setTimeout(() => overlay.classList.add("hidden"), 1800);
+}
 
 /* =========================
-   ELEMENTOS
+   ESTADO
 ========================= */
 const tbody = document.getElementById("tabelaBody");
 const busca = document.getElementById("buscaAnuncio");
 const filterStockPositive = document.getElementById("filterStockPositive");
 const statusButtons = document.getElementById("statusButtons");
 const countValue = document.getElementById("countValue");
+const checkAll = document.getElementById("checkAll");
 const btnSync = document.getElementById("btnSync");
 const lastSyncLabel = document.getElementById("lastSyncLabel");
 
-/* =========================
-   UTIL
-========================= */
-function showToast(title, msg, type = "info") {
-  alert(`${title}\n${msg}`);
-}
+let anuncios = [];
+let skus = [];
+let statusAtual = "todos";
+let selecionados = new Set();
 
+/* =========================
+   DATA HELPERS
+========================= */
 function formatDate(dt) {
   return dt.toLocaleString("pt-BR");
+}
+
+function setLastSyncNow() {
+  const now = new Date();
+  localStorage.setItem("ml_last_sync", now.toISOString());
+  lastSyncLabel.textContent = formatDate(now);
 }
 
 function loadLastSync() {
@@ -104,47 +154,60 @@ function loadLastSync() {
 }
 
 /* =========================
-   SKU SEARCH (INPUT + DROPDOWN)
+   API LOADERS
 ========================= */
-function criarSkuSearch(onSelect) {
-  const wrap = document.createElement("div");
-  wrap.className = "sku-search";
+async function carregarSkus() {
+  skus = await apiGet("/sku");
+}
 
-  const input = document.createElement("input");
-  input.placeholder = "Buscar SKU...";
-  input.className = "search-input";
-
-  const list = document.createElement("div");
-  list.className = "sku-search-list hidden";
-
-  input.oninput = () => {
-    const termo = input.value.toLowerCase();
-    list.innerHTML = "";
-
-    skus
-      .filter((s) =>
-        `${s.codigo} ${s.nome}`.toLowerCase().includes(termo)
-      )
-      .forEach((s) => {
-        const item = document.createElement("div");
-        item.textContent = `${s.codigo} - ${s.nome}`;
-        item.onclick = () => {
-          input.value = `${s.codigo} - ${s.nome}`;
-          list.classList.add("hidden");
-          onSelect(s.id);
-        };
-        list.appendChild(item);
-      });
-
-    list.classList.remove("hidden");
-  };
-
-  wrap.append(input, list);
-  return wrap;
+async function carregarAnuncios() {
+  anuncios = await apiGet("/ml/anuncios");
 }
 
 /* =========================
-   FILTRO
+   AUTO-VÍNCULO INTELIGENTE
+========================= */
+async function tentarAutoVinculo(anuncio) {
+  if (anuncio.sku) return;
+  if (!anuncio.seller_sku) return;
+
+  const skuMatch = skus.find(
+    (s) => String(s.codigo).trim() === String(anuncio.seller_sku).trim()
+  );
+
+  if (!skuMatch) return;
+
+  try {
+    await apiPost(`/sku/${skuMatch.id}/vincular`, {
+      ml_item_id: anuncio.ml_item_id
+    });
+  } catch {
+    // silencioso por design
+  }
+}
+
+/* =========================
+   SYNC
+========================= */
+btnSync.onclick = async () => {
+  try {
+    showToast("Atualizando", "Atualizando anúncios do Mercado Livre…", "loading");
+    btnSync.disabled = true;
+
+    await apiPost("/ml/anuncios/sync");
+    setLastSyncNow();
+
+    await boot();
+    showToast("Concluído", "Anúncios atualizados com sucesso.");
+  } catch {
+    showToast("Erro", "Falha ao atualizar anúncios.");
+  } finally {
+    btnSync.disabled = false;
+  }
+};
+
+/* =========================
+   FILTROS
 ========================= */
 statusButtons.querySelectorAll("button").forEach((btn) => {
   btn.onclick = () => {
@@ -163,8 +226,11 @@ function getListaVisivel() {
 
   if (statusAtual === "vinculados") lista = lista.filter((a) => a.sku);
   if (statusAtual === "sem_vinculo") lista = lista.filter((a) => !a.sku);
-  if (["ativo", "pausado"].includes(statusAtual)) lista = lista.filter((a) => a.status === statusAtual);
-  if (filterStockPositive.checked) lista = lista.filter((a) => Number(a.estoque_ml) > 0);
+  if (["ativo", "pausado"].includes(statusAtual))
+    lista = lista.filter((a) => a.status === statusAtual);
+
+  if (filterStockPositive.checked)
+    lista = lista.filter((a) => Number(a.estoque_ml) > 0);
 
   const termo = busca.value.toLowerCase().trim();
   return lista.filter((a) =>
@@ -186,67 +252,15 @@ function render(lista) {
 
   lista.forEach((a) => {
     const tr = document.createElement("tr");
-
     tr.innerHTML = `
+      <td></td>
       <td>${a.ml_item_id}</td>
       <td>${a.titulo}</td>
-      <td>
-        <span class="badge ${a.tipo_anuncio === "CATALOGO" ? "badge-catalogo" : "badge-lista"}">
-          ${a.tipo_anuncio}
-        </span>
-      </td>
       <td>${a.status}</td>
       <td>${a.estoque_ml}</td>
-      <td>
-        ${a?.sku?.sku_codigo || "—"}
-        ${
-          a.origem_vinculo
-            ? `<span class="badge ${a.origem_vinculo === "AUTO" ? "badge-auto" : "badge-manual"}">
-                 ${a.origem_vinculo}
-               </span>`
-            : ""
-        }
-      </td>
+      <td>${a?.sku?.sku_codigo ?? "—"}</td>
       <td></td>
     `;
-
-    const actions = document.createElement("div");
-
-    if (!a.sku) {
-      let skuSelecionado = null;
-
-      const search = criarSkuSearch((id) => (skuSelecionado = id));
-
-      const btn = document.createElement("button");
-      btn.className = "btn btn-primary";
-      btn.textContent = "Vincular";
-
-      btn.onclick = async () => {
-        if (!skuSelecionado) return showToast("Atenção", "Selecione um SKU.");
-
-        showToast("Processando", "Vinculando anúncio…");
-        await apiPost(`/sku/${skuSelecionado}/vincular`, {
-          ml_item_id: a.ml_item_id
-        });
-        await boot();
-      };
-
-      actions.append(search, btn);
-    } else {
-      const btnDesv = document.createElement("button");
-      btnDesv.className = "btn btn-muted";
-      btnDesv.textContent = "Desvincular";
-
-      btnDesv.onclick = async () => {
-        showToast("Processando", "Desvinculando anúncio…");
-        await apiPost("/anuncios/desvincular", { ml_item_id: a.ml_item_id });
-        await boot();
-      };
-
-      actions.append(btnDesv);
-    }
-
-    tr.lastElementChild.appendChild(actions);
     tbody.appendChild(tr);
   });
 
@@ -254,35 +268,28 @@ function render(lista) {
 }
 
 /* =========================
-   LOAD
+   PIPELINE
 ========================= */
-async function carregarSkus() {
-  skus = await apiGet("/sku");
-}
-
-async function carregarAnuncios() {
-  anuncios = await apiGet("/ml/anuncios");
-}
-
-async function boot() {
-  loadLastSync();
-  await carregarSkus();
-  await carregarAnuncios();
-  aplicarTudo();
-}
-
 function aplicarTudo() {
   render(getListaVisivel());
 }
 
-/* =========================
-   SYNC
-========================= */
-btnSync.onclick = async () => {
-  showToast("Atualizando", "Atualizando anúncios…");
-  await apiPost("/ml/anuncios/sync");
-  localStorage.setItem("ml_last_sync", new Date().toISOString());
-  await boot();
-};
+async function boot() {
+  showToast("Carregando", "Carregando anúncios do Mercado Livre…", "loading");
+  loadLastSync();
+
+  await carregarSkus();
+  await carregarAnuncios();
+
+  // 🔥 AUTO-VÍNCULO
+  for (const a of anuncios) {
+    await tentarAutoVinculo(a);
+  }
+
+  await carregarAnuncios();
+  aplicarTudo();
+
+  document.getElementById("toastOverlay").classList.add("hidden");
+}
 
 await boot();
