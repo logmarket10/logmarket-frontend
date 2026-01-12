@@ -2,15 +2,14 @@
    ANÚNCIOS – AJUSTES ESPECÍFICOS (SEM QUEBRAR GLOBAL)
 ===================================================== */
 
-/* A .pagebar global tem align-items:center.
-   Aqui anulamos isso APENAS na tela de anúncios */
+/* Override controlado da pagebar global */
 .pagebar.anuncios-pagebar-final{
-  display: flex;              /* garante override */
+  display: flex;
   flex-direction: column;
-  align-items: stretch;       /* <<< ESSENCIAL: para não centralizar */
+  align-items: stretch;
   gap: 14px;
-  height: auto;               /* a pagebar global tem height:96px; aqui vira auto */
-  min-height: 96px;           /* mantém padrão */
+  height: auto;
+  min-height: 96px;
 }
 
 /* =========================
@@ -20,11 +19,10 @@
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: flex-start;  /* título encosta à esquerda */
+  justify-content: flex-start;
   gap: 18px;
 }
 
-/* Título */
 .pagebar.anuncios-pagebar-final .anuncios-top-row .pagebar-title{
   font-size: 30px;
   font-weight: 700;
@@ -33,16 +31,14 @@
   margin-right: 12px;
 }
 
-/* Busca (maior, como no desenho) */
 .pagebar.anuncios-pagebar-final .anuncios-search{
   flex: 1;
   max-width: 520px;
   min-width: 320px;
 }
 
-/* Última atualização vai para a DIREITA (empurra com margin-left:auto) */
 .pagebar.anuncios-pagebar-final .pagebar-last-sync{
-  margin-left: auto;          /* <<< ESSENCIAL: joga pro canto direito */
+  margin-left: auto;
   font-size: 13px;
   color: #6b7280;
   white-space: nowrap;
@@ -60,12 +56,11 @@
   flex-wrap: wrap;
 }
 
-/* Total não some: deixa “colado” à direita na mesma linha 2 */
 .pagebar.anuncios-pagebar-final .count-card{
-  margin-left: auto;          /* joga o card Total para a direita */
+  margin-left: auto;
 }
 
-/* Estoque positivo (label) */
+/* Estoque positivo */
 .stock-filter{
   display: flex;
   align-items: center;
@@ -77,10 +72,10 @@
 .stock-filter input{ cursor: pointer; }
 
 /* =========================
-   BULK BAR – FICAR POR CIMA DE TUDO (SEM MEXER NO GLOBAL)
+   BULK BAR
 ========================= */
 #bulkBar.anuncios-bulk{
-  z-index: 70;                /* acima da pagebar (35) e do header (40) */
+  z-index: 70;
 }
 
 /* =========================
@@ -92,7 +87,6 @@
   max-height: calc(100vh - 330px);
 }
 
-/* Header sticky */
 #tabelaAnuncios thead th{
   position: sticky;
   top: 0;
@@ -101,18 +95,109 @@
   border-bottom: 2px solid #e5e7eb;
 }
 
-/* Checkbox alinhado */
 #tabelaAnuncios th:first-child,
 #tabelaAnuncios td:first-child{
   width: 42px;
   text-align: center;
 }
 
-/* Ações */
+/* =========================
+   AÇÕES
+========================= */
 .actions{
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* =========================
+   BADGES (TIPO / VÍNCULO)
+========================= */
+.badge{
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Tipo do anúncio */
+.badge-catalogo{
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
+
+.badge-lista{
+  background: #EDE9FE;
+  color: #6D28D9;
+}
+
+/* Origem do vínculo */
+.badge-auto{
+  background: #DCFCE7;
+  color: #166534;
+  margin-left: 6px;
+}
+
+.badge-manual{
+  background: #FEF3C7;
+  color: #92400E;
+  margin-left: 6px;
+}
+
+/* =========================
+   BUSCADOR DE SKU (INPUT + LISTA)
+========================= */
+.sku-search{
+  position: relative;
+  width: 100%;
+}
+
+.sku-search input{
+  width: 100%;
+}
+
+.sku-search-list{
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 50;
+  box-shadow: 0 10px 18px rgba(0,0,0,0.08);
+}
+
+.sku-search-list.hidden{
+  display: none;
+}
+
+.sku-search-list div{
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sku-search-list div:hover{
+  background: #F3F4F6;
+}
+
+/* =========================
+   BOTÕES – ESTADOS
+========================= */
+button.loading{
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+button:not(:disabled){
+  cursor: pointer;
 }
 
 /* =========================
@@ -128,17 +213,10 @@
   }
 
   .pagebar.anuncios-pagebar-final .pagebar-last-sync{
-    margin-left: 0; /* quebra para baixo no mobile */
+    margin-left: 0;
   }
 
   .pagebar.anuncios-pagebar-final .count-card{
-    margin-left: 0; /* no mobile, não força direita */
+    margin-left: 0;
   }
-}
-button.loading {
-  opacity: 0.7;
-}
-
-button:not(:disabled) {
-  cursor: pointer;
 }
