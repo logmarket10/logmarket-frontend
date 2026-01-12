@@ -13,7 +13,6 @@ const page = document.getElementById("pageContent");
 page.innerHTML = `
 <section class="pagebar anuncios-pagebar-final">
 
-  <!-- LINHA 1 -->
   <div class="anuncios-top-row">
     <h1 class="pagebar-title">Anúncios</h1>
 
@@ -29,7 +28,6 @@ page.innerHTML = `
     </div>
   </div>
 
-  <!-- LINHA 2 -->
   <div class="anuncios-bottom-row">
     <label class="stock-filter">
       <input type="checkbox" id="filterStockPositive">
@@ -44,9 +42,7 @@ page.innerHTML = `
       <button data-status="sem_vinculo">Sem vínculo</button>
     </div>
 
-    <button id="btnSync" class="btn btn-primary">
-      Atualizar anúncios
-    </button>
+    <button id="btnSync" class="btn btn-primary">Atualizar anúncios</button>
 
     <div class="count-card">
       <span>Total</span>
@@ -55,30 +51,16 @@ page.innerHTML = `
   </div>
 </section>
 
-<section id="bulkBar" class="anuncios-bulk hidden">
-  <strong><span id="bulkCount">0</span> selecionados</strong>
-
-  <div class="bulk-actions">
-    <select id="bulkSkuSelect">
-      <option value="">Selecione o SKU</option>
-    </select>
-
-    <button id="bulkVincular" class="btn btn-primary">Vincular</button>
-    <button id="bulkDesvincular" class="btn btn-muted">Desvincular</button>
-    <button id="bulkCancelar" class="btn btn-muted">Cancelar</button>
-  </div>
-</section>
-
 <div class="table-wrap anuncios-table-wrap">
   <table id="tabelaAnuncios">
     <thead>
       <tr>
-        <th><input type="checkbox" id="checkAll"></th>
         <th>Código ML</th>
         <th>Anúncio</th>
+        <th>Tipo</th>
         <th>Status</th>
         <th>Estoque ML</th>
-        <th>SKU vinculado</th>
+        <th>SKU</th>
         <th>Ação</th>
       </tr>
     </thead>
@@ -88,82 +70,32 @@ page.innerHTML = `
 `;
 
 /* =========================
-   TOAST (aceita objeto ou (titulo, msg))
+   ESTADO
 ========================= */
-function showToast(arg1, arg2, arg3) {
-  let title = "";
-  let message = "";
-  let type = "info";
-
-  // Se veio como objeto: showToast({title, message, type})
-  if (typeof arg1 === "object" && arg1 !== null) {
-    title = arg1.title || "";
-    message = arg1.message || "";
-    type = arg1.type || "info";
-  } else {
-    // Se veio como showToast("Título", "Mensagem", "tipo")
-    title = arg1 || "";
-    message = arg2 || "";
-    type = arg3 || "info";
-  }
-
-  const overlay = document.getElementById("toastOverlay");
-  const titleEl = document.getElementById("toastTitle");
-  const msgEl = document.getElementById("toastMessage");
-  const okBtn = document.getElementById("toastOk");
-
-  titleEl.textContent = title;
-  msgEl.textContent = message;
-
-  okBtn.onclick = null;
-  okBtn.textContent = "OK";
-
-  overlay.classList.remove("hidden");
-
-  okBtn.onclick = () => overlay.classList.add("hidden");
-
-  if (type === "loading") return;
-
-  setTimeout(() => {
-    overlay.classList.add("hidden");
-  }, 1800);
-}
+let anuncios = [];
+let skus = [];
+let statusAtual = "todos";
 
 /* =========================
-   ELEMENTOS / ESTADO
+   ELEMENTOS
 ========================= */
 const tbody = document.getElementById("tabelaBody");
 const busca = document.getElementById("buscaAnuncio");
 const filterStockPositive = document.getElementById("filterStockPositive");
 const statusButtons = document.getElementById("statusButtons");
 const countValue = document.getElementById("countValue");
-const checkAll = document.getElementById("checkAll");
 const btnSync = document.getElementById("btnSync");
 const lastSyncLabel = document.getElementById("lastSyncLabel");
 
-const bulkBar = document.getElementById("bulkBar");
-const bulkCount = document.getElementById("bulkCount");
-const bulkSkuSelect = document.getElementById("bulkSkuSelect");
-const bulkVincular = document.getElementById("bulkVincular");
-const bulkDesvincular = document.getElementById("bulkDesvincular");
-const bulkCancelar = document.getElementById("bulkCancelar");
-
-let anuncios = [];
-let skus = [];
-let statusAtual = "todos";
-let selecionados = new Set();
-
 /* =========================
-   FUNÇÕES AUXILIARES
+   UTIL
 ========================= */
-function formatDate(dt) {
-  return dt.toLocaleString("pt-BR");
+function showToast(title, msg, type = "info") {
+  alert(`${title}\n${msg}`);
 }
 
-function setLastSyncNow() {
-  const now = new Date();
-  localStorage.setItem("ml_last_sync", now.toISOString());
-  lastSyncLabel.textContent = formatDate(now);
+function formatDate(dt) {
+  return dt.toLocaleString("pt-BR");
 }
 
 function loadLastSync() {
@@ -172,61 +104,47 @@ function loadLastSync() {
 }
 
 /* =========================
-   LOADER SKELETON
+   SKU SEARCH (INPUT + DROPDOWN)
 ========================= */
-function renderSkeleton(rows = 8) {
-  tbody.innerHTML = "";
-  for (let i = 0; i < rows; i++) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><div class="skeleton skeleton-checkbox"></div></td>
-      <td><div class="skeleton skeleton-text"></div></td>
-      <td><div class="skeleton skeleton-text long"></div></td>
-      <td><div class="skeleton skeleton-text short"></div></td>
-      <td><div class="skeleton skeleton-text short"></div></td>
-      <td><div class="skeleton skeleton-text"></div></td>
-      <td><div class="skeleton skeleton-btn"></div></td>
-    `;
-    tbody.appendChild(tr);
-  }
+function criarSkuSearch(onSelect) {
+  const wrap = document.createElement("div");
+  wrap.className = "sku-search";
+
+  const input = document.createElement("input");
+  input.placeholder = "Buscar SKU...";
+  input.className = "search-input";
+
+  const list = document.createElement("div");
+  list.className = "sku-search-list hidden";
+
+  input.oninput = () => {
+    const termo = input.value.toLowerCase();
+    list.innerHTML = "";
+
+    skus
+      .filter((s) =>
+        `${s.codigo} ${s.nome}`.toLowerCase().includes(termo)
+      )
+      .forEach((s) => {
+        const item = document.createElement("div");
+        item.textContent = `${s.codigo} - ${s.nome}`;
+        item.onclick = () => {
+          input.value = `${s.codigo} - ${s.nome}`;
+          list.classList.add("hidden");
+          onSelect(s.id);
+        };
+        list.appendChild(item);
+      });
+
+    list.classList.remove("hidden");
+  };
+
+  wrap.append(input, list);
+  return wrap;
 }
 
 /* =========================
-   CARREGAMENTO
-========================= */
-async function carregarSkus() {
-  skus = await apiGet("/sku");
-}
-
-async function carregarAnuncios() {
-  anuncios = await apiGet("/ml/anuncios");
-}
-
-/* =========================
-   SYNC
-========================= */
-btnSync.onclick = async () => {
-  try {
-    showToast("Atualizando", "Atualizando anúncios do Mercado Livre…", "loading");
-    btnSync.disabled = true;
-    renderSkeleton();
-
-    await apiPost("/ml/anuncios/sync");
-    setLastSyncNow();
-
-    await carregarAnuncios();
-    aplicarTudo();
-
-    showToast("Concluído", "Anúncios atualizados com sucesso.");
-  } catch {
-    showToast("Erro", "Falha ao atualizar anúncios.");
-  } finally {
-    btnSync.disabled = false;
-  }
-};
-
-/* =========================
-   FILTROS
+   FILTRO
 ========================= */
 statusButtons.querySelectorAll("button").forEach((btn) => {
   btn.onclick = () => {
@@ -246,7 +164,6 @@ function getListaVisivel() {
   if (statusAtual === "vinculados") lista = lista.filter((a) => a.sku);
   if (statusAtual === "sem_vinculo") lista = lista.filter((a) => !a.sku);
   if (["ativo", "pausado"].includes(statusAtual)) lista = lista.filter((a) => a.status === statusAtual);
-
   if (filterStockPositive.checked) lista = lista.filter((a) => Number(a.estoque_ml) > 0);
 
   const termo = busca.value.toLowerCase().trim();
@@ -258,119 +175,75 @@ function getListaVisivel() {
 /* =========================
    RENDER
 ========================= */
-function criarSelect(valor, disabled) {
-  const s = document.createElement("select");
-  s.disabled = disabled;
-  s.innerHTML = `<option value="">Selecione o SKU</option>`;
-  skus.forEach((k) => {
-    const opt = document.createElement("option");
-    opt.value = k.id;
-    opt.textContent = `${k.codigo} - ${k.nome}`;
-    if (String(valor) === String(k.id)) opt.selected = true;
-    s.appendChild(opt);
-  });
-  return s;
-}
-
 function render(lista) {
   tbody.innerHTML = "";
 
   if (!lista.length) {
     tbody.innerHTML = `<tr><td colspan="7">Nenhum anúncio encontrado</td></tr>`;
     countValue.textContent = "0";
-    atualizarBulkBar();
     return;
   }
 
   lista.forEach((a) => {
     const tr = document.createElement("tr");
+
     tr.innerHTML = `
-      <td><input type="checkbox" class="row-check"></td>
       <td>${a.ml_item_id}</td>
       <td>${a.titulo}</td>
+      <td>
+        <span class="badge ${a.tipo_anuncio === "CATALOGO" ? "badge-catalogo" : "badge-lista"}">
+          ${a.tipo_anuncio}
+        </span>
+      </td>
       <td>${a.status}</td>
       <td>${a.estoque_ml}</td>
-      <td>${a?.sku?.sku_codigo ?? "—"}</td>
+      <td>
+        ${a?.sku?.sku_codigo || "—"}
+        ${
+          a.origem_vinculo
+            ? `<span class="badge ${a.origem_vinculo === "AUTO" ? "badge-auto" : "badge-manual"}">
+                 ${a.origem_vinculo}
+               </span>`
+            : ""
+        }
+      </td>
       <td></td>
     `;
 
-    const chk = tr.querySelector(".row-check");
-    chk.checked = selecionados.has(a.ml_item_id);
-    chk.onchange = () => {
-      chk.checked ? selecionados.add(a.ml_item_id) : selecionados.delete(a.ml_item_id);
-      atualizarBulkBar();
-    };
-
     const actions = document.createElement("div");
-    actions.className = "actions";
 
-    const select = criarSelect(a?.sku?.id, !!a.sku);
+    if (!a.sku) {
+      let skuSelecionado = null;
 
-    if (a.sku) {
-      const btnEditar = document.createElement("button");
-      btnEditar.className = "btn btn-warning";
-      btnEditar.textContent = "Editar";
+      const search = criarSkuSearch((id) => (skuSelecionado = id));
 
-      btnEditar.onclick = () => {
-        select.disabled = false;
-        btnEditar.textContent = "Salvar";
-        btnEditar.className = "btn btn-primary";
+      const btn = document.createElement("button");
+      btn.className = "btn btn-primary";
+      btn.textContent = "Vincular";
 
-        btnEditar.onclick = async () => {
-          showToast("Salvando", "Salvando alterações…", "loading");
-          await apiPost(`/sku/${select.value}/vincular`, { ml_item_id: a.ml_item_id });
-          await boot();
-          showToast("Sucesso", "Anúncio atualizado.");
-        };
+      btn.onclick = async () => {
+        if (!skuSelecionado) return showToast("Atenção", "Selecione um SKU.");
+
+        showToast("Processando", "Vinculando anúncio…");
+        await apiPost(`/sku/${skuSelecionado}/vincular`, {
+          ml_item_id: a.ml_item_id
+        });
+        await boot();
       };
 
+      actions.append(search, btn);
+    } else {
       const btnDesv = document.createElement("button");
       btnDesv.className = "btn btn-muted";
       btnDesv.textContent = "Desvincular";
 
       btnDesv.onclick = async () => {
-        if (btnDesv.classList.contains("loading")) return;
-
-        // estado visual correto
-        btnDesv.classList.add("loading");
-        btnDesv.textContent = "Desvinculando…";
-        btnDesv.style.cursor = "progress";
-        btnDesv.style.pointerEvents = "none";
-
-        showToast("Processando", "Desvinculando anúncio…", "loading");
-
-        try {
-          await apiPost("/anuncios/desvincular", {
-            ml_item_id: a.ml_item_id
-          });
-
-          await boot();
-          showToast("Desvinculado", "Anúncio desvinculado com sucesso.");
-        } catch {
-          showToast("Erro", "Falha ao desvincular anúncio.");
-        } finally {
-          // fallback de segurança
-          btnDesv.classList.remove("loading");
-          btnDesv.textContent = "Desvincular";
-          btnDesv.style.cursor = "pointer";
-          btnDesv.style.pointerEvents = "auto";
-        }
-      };
-
-      actions.append(select, btnEditar, btnDesv);
-    } else {
-      const btn = document.createElement("button");
-      btn.className = "btn btn-primary";
-      btn.textContent = "Vincular";
-      btn.onclick = async () => {
-        if (!select.value) return showToast("Atenção", "Selecione um SKU.");
-        showToast("Processando", "Vinculando anúncio…", "loading");
-        await apiPost(`/sku/${select.value}/vincular`, { ml_item_id: a.ml_item_id });
+        showToast("Processando", "Desvinculando anúncio…");
+        await apiPost("/anuncios/desvincular", { ml_item_id: a.ml_item_id });
         await boot();
-        showToast("Sucesso", "Anúncio vinculado.");
       };
 
-      actions.append(select, btn);
+      actions.append(btnDesv);
     }
 
     tr.lastElementChild.appendChild(actions);
@@ -378,53 +251,38 @@ function render(lista) {
   });
 
   countValue.textContent = String(lista.length);
-  atualizarBulkBar();
 }
 
 /* =========================
-   BULK
+   LOAD
 ========================= */
-checkAll.onchange = () => {
-  selecionados.clear();
-  if (checkAll.checked) getListaVisivel().forEach((a) => selecionados.add(a.ml_item_id));
-  aplicarTudo();
-};
-
-function atualizarBulkBar() {
-  if (selecionados.size >= 2) {
-    bulkBar.classList.remove("hidden");
-    bulkCount.textContent = selecionados.size;
-
-    bulkSkuSelect.innerHTML = `<option value="">Selecione o SKU</option>`;
-    skus.forEach((s) => {
-      bulkSkuSelect.innerHTML += `<option value="${s.id}">${s.codigo} - ${s.nome}</option>`;
-    });
-  } else {
-    bulkBar.classList.add("hidden");
-  }
+async function carregarSkus() {
+  skus = await apiGet("/sku");
 }
 
-bulkCancelar.onclick = () => {
-  selecionados.clear();
-  checkAll.checked = false;
-  aplicarTudo();
-};
-
-/* =========================
-   PIPELINE
-========================= */
-function aplicarTudo() {
-  render(getListaVisivel());
+async function carregarAnuncios() {
+  anuncios = await apiGet("/ml/anuncios");
 }
 
 async function boot() {
-  showToast("Carregando", "Carregando anúncios do Mercado Livre…", "loading");
-  renderSkeleton();
   loadLastSync();
   await carregarSkus();
   await carregarAnuncios();
   aplicarTudo();
-  document.getElementById("toastOverlay").classList.add("hidden");
 }
+
+function aplicarTudo() {
+  render(getListaVisivel());
+}
+
+/* =========================
+   SYNC
+========================= */
+btnSync.onclick = async () => {
+  showToast("Atualizando", "Atualizando anúncios…");
+  await apiPost("/ml/anuncios/sync");
+  localStorage.setItem("ml_last_sync", new Date().toISOString());
+  await boot();
+};
 
 await boot();
