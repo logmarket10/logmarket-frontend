@@ -12,6 +12,8 @@ const page = document.getElementById("pageContent");
 ========================= */
 page.innerHTML = `
 <section class="pagebar anuncios-pagebar-final">
+
+  <!-- LINHA 1 -->
   <div class="anuncios-top-row">
     <h1 class="pagebar-title">Anúncios</h1>
 
@@ -27,6 +29,7 @@ page.innerHTML = `
     </div>
   </div>
 
+  <!-- LINHA 2 -->
   <div class="anuncios-bottom-row">
     <label class="stock-filter">
       <input type="checkbox" id="filterStockPositive">
@@ -73,6 +76,7 @@ page.innerHTML = `
         <th><input type="checkbox" id="checkAll"></th>
         <th>Código ML</th>
         <th>Anúncio</th>
+        <th>Tipo</th>
         <th>Status</th>
         <th>Estoque ML</th>
         <th>SKU vinculado</th>
@@ -107,19 +111,31 @@ function showToast(arg1, arg2, arg3) {
   const msgEl = document.getElementById("toastMessage");
   const okBtn = document.getElementById("toastOk");
 
+  if (!overlay || !titleEl || !msgEl || !okBtn) {
+    // fallback defensivo caso overlay não exista
+    console.log(`[TOAST] ${title} - ${message}`);
+    return;
+  }
+
   titleEl.textContent = title;
   msgEl.textContent = message;
+
+  okBtn.onclick = null;
   okBtn.textContent = "OK";
+
   overlay.classList.remove("hidden");
 
   okBtn.onclick = () => overlay.classList.add("hidden");
+
   if (type === "loading") return;
 
-  setTimeout(() => overlay.classList.add("hidden"), 1800);
+  setTimeout(() => {
+    overlay.classList.add("hidden");
+  }, 1800);
 }
 
 /* =========================
-   ESTADO
+   ELEMENTOS / ESTADO
 ========================= */
 const tbody = document.getElementById("tabelaBody");
 const busca = document.getElementById("buscaAnuncio");
@@ -130,13 +146,20 @@ const checkAll = document.getElementById("checkAll");
 const btnSync = document.getElementById("btnSync");
 const lastSyncLabel = document.getElementById("lastSyncLabel");
 
+const bulkBar = document.getElementById("bulkBar");
+const bulkCount = document.getElementById("bulkCount");
+const bulkSkuSelect = document.getElementById("bulkSkuSelect");
+const bulkVincular = document.getElementById("bulkVincular");
+const bulkDesvincular = document.getElementById("bulkDesvincular");
+const bulkCancelar = document.getElementById("bulkCancelar");
+
 let anuncios = [];
 let skus = [];
 let statusAtual = "todos";
 let selecionados = new Set();
 
 /* =========================
-   DATA HELPERS
+   HELPERS
 ========================= */
 function formatDate(dt) {
   return dt.toLocaleString("pt-BR");
@@ -153,8 +176,48 @@ function loadLastSync() {
   if (v) lastSyncLabel.textContent = formatDate(new Date(v));
 }
 
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Normaliza SKU para bater "004213 - 5" == "004213-5" == "004213 -5"
+ * - remove espaços
+ * - padroniza hífen
+ * - uppercase
+ */
+function normalizeSku(v) {
+  if (!v) return "";
+  return String(v)
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "")      // remove todos os espaços
+    .replace(/–|—/g, "-");    // troca hífens especiais por "-"
+}
+
 /* =========================
-   API LOADERS
+   LOADER SKELETON
+========================= */
+function renderSkeleton(rows = 8) {
+  tbody.innerHTML = "";
+  for (let i = 0; i < rows; i++) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><div class="skeleton skeleton-checkbox"></div></td>
+      <td><div class="skeleton skeleton-text"></div></td>
+      <td><div class="skeleton skeleton-text long"></div></td>
+      <td><div class="skeleton skeleton-text short"></div></td>
+      <td><div class="skeleton skeleton-text short"></div></td>
+      <td><div class="skeleton skeleton-text short"></div></td>
+      <td><div class="skeleton skeleton-text"></div></td>
+      <td><div class="skeleton skeleton-btn"></div></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+/* =========================
+   CARREGAMENTO
 ========================= */
 async function carregarSkus() {
   skus = await apiGet("/sku");
@@ -165,46 +228,55 @@ async function carregarAnuncios() {
 }
 
 /* =========================
-   AUTO-VÍNCULO INTELIGENTE
+   AUTO-VÍNCULO (FRONT)
+   - tenta vincular anúncios sem vínculo cujo seller_sku bate com sku.codigo
+   - throttling para não explodir requests
 ========================= */
-async function tentarAutoVinculo(anuncio) {
-  if (anuncio.sku) return;
-  if (!anuncio.seller_sku) return;
+async function autoVincularPorSellerSku() {
+  // candidatos: sem vínculo + seller_sku presente
+  const candidatos = anuncios.filter((a) => !a.sku && a.seller_sku);
 
-  const skuMatch = skus.find(
-    (s) => String(s.codigo).trim() === String(anuncio.seller_sku).trim()
-  );
+  if (!candidatos.length) return { tentados: 0, vinculados: 0, erros: 0 };
 
-  if (!skuMatch) return;
+  // índice rápido por codigo normalizado
+  const idx = new Map();
+  skus.forEach((s) => idx.set(normalizeSku(s.codigo), s));
 
-  try {
-    await apiPost(`/sku/${skuMatch.id}/vincular`, {
-      ml_item_id: anuncio.ml_item_id
-    });
-  } catch {
-    // silencioso por design
+  let tentados = 0;
+  let vinculados = 0;
+  let erros = 0;
+
+  // limite defensivo para não martelar o backend em carregamentos grandes
+  const LIMITE = 80;
+
+  for (const a of candidatos.slice(0, LIMITE)) {
+    const key = normalizeSku(a.seller_sku);
+    const skuMatch = idx.get(key);
+
+    if (!skuMatch) continue;
+
+    tentados += 1;
+
+    try {
+      await apiPost(`/sku/${skuMatch.id}/vincular`, { ml_item_id: a.ml_item_id });
+      vinculados += 1;
+    } catch (e) {
+      erros += 1;
+      // log defensivo (não interrompe a tela)
+      console.warn("[AUTO-VINCULO] falhou", {
+        ml_item_id: a.ml_item_id,
+        seller_sku: a.seller_sku,
+        sku_id: skuMatch.id,
+        err: String(e?.message || e)
+      });
+    }
+
+    // throttle leve (evita enxurrada e 429/instabilidade)
+    await sleep(60);
   }
+
+  return { tentados, vinculados, erros };
 }
-
-/* =========================
-   SYNC
-========================= */
-btnSync.onclick = async () => {
-  try {
-    showToast("Atualizando", "Atualizando anúncios do Mercado Livre…", "loading");
-    btnSync.disabled = true;
-
-    await apiPost("/ml/anuncios/sync");
-    setLastSyncNow();
-
-    await boot();
-    showToast("Concluído", "Anúncios atualizados com sucesso.");
-  } catch {
-    showToast("Erro", "Falha ao atualizar anúncios.");
-  } finally {
-    btnSync.disabled = false;
-  }
-};
 
 /* =========================
    FILTROS
@@ -226,46 +298,226 @@ function getListaVisivel() {
 
   if (statusAtual === "vinculados") lista = lista.filter((a) => a.sku);
   if (statusAtual === "sem_vinculo") lista = lista.filter((a) => !a.sku);
-  if (["ativo", "pausado"].includes(statusAtual))
-    lista = lista.filter((a) => a.status === statusAtual);
+  if (["ativo", "pausado"].includes(statusAtual)) lista = lista.filter((a) => a.status === statusAtual);
 
-  if (filterStockPositive.checked)
-    lista = lista.filter((a) => Number(a.estoque_ml) > 0);
+  if (filterStockPositive.checked) lista = lista.filter((a) => Number(a.estoque_ml) > 0);
 
   const termo = busca.value.toLowerCase().trim();
+
   return lista.filter((a) =>
-    `${a.ml_item_id} ${a.titulo} ${a?.sku?.sku_codigo || ""}`.toLowerCase().includes(termo)
+    `${a.ml_item_id} ${a.titulo} ${a.status} ${a.tipo_anuncio || ""} ${a.seller_sku || ""} ${a?.sku?.sku_codigo || ""}`
+      .toLowerCase()
+      .includes(termo)
   );
 }
 
 /* =========================
-   RENDER
+   RENDER (com ações)
 ========================= */
+function criarSelect(valorSkuId, disabled) {
+  const s = document.createElement("select");
+  s.disabled = disabled;
+  s.innerHTML = `<option value="">Selecione o SKU</option>`;
+  skus.forEach((k) => {
+    const opt = document.createElement("option");
+    opt.value = k.id;
+    opt.textContent = `${k.codigo} - ${k.nome}`;
+    if (String(valorSkuId) === String(k.id)) opt.selected = true;
+    s.appendChild(opt);
+  });
+  return s;
+}
+
 function render(lista) {
   tbody.innerHTML = "";
 
   if (!lista.length) {
-    tbody.innerHTML = `<tr><td colspan="7">Nenhum anúncio encontrado</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8">Nenhum anúncio encontrado</td></tr>`;
     countValue.textContent = "0";
+    atualizarBulkBar();
     return;
   }
 
   lista.forEach((a) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td></td>
+      <td><input type="checkbox" class="row-check"></td>
       <td>${a.ml_item_id}</td>
       <td>${a.titulo}</td>
+      <td><span class="pill">${a.tipo_anuncio || "—"}</span></td>
       <td>${a.status}</td>
       <td>${a.estoque_ml}</td>
       <td>${a?.sku?.sku_codigo ?? "—"}</td>
       <td></td>
     `;
+
+    const chk = tr.querySelector(".row-check");
+    chk.checked = selecionados.has(a.ml_item_id);
+    chk.onchange = () => {
+      chk.checked ? selecionados.add(a.ml_item_id) : selecionados.delete(a.ml_item_id);
+      atualizarBulkBar();
+    };
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    // Se já está vinculado, trava select por padrão
+    const select = criarSelect(a?.sku?.id, !!a.sku);
+
+    if (a.sku) {
+      const btnEditar = document.createElement("button");
+      btnEditar.className = "btn btn-warning";
+      btnEditar.textContent = "Editar";
+
+      btnEditar.onclick = () => {
+        select.disabled = false;
+        btnEditar.textContent = "Salvar";
+        btnEditar.className = "btn btn-primary";
+
+        btnEditar.onclick = async () => {
+          if (!select.value) return showToast("Atenção", "Selecione um SKU.");
+          try {
+            showToast("Salvando", "Salvando alterações…", "loading");
+            await apiPost(`/sku/${select.value}/vincular`, { ml_item_id: a.ml_item_id });
+            await boot();
+            showToast("Sucesso", "Anúncio atualizado.");
+          } catch {
+            showToast("Erro", "Falha ao atualizar anúncio.");
+          }
+        };
+      };
+
+      const btnDesv = document.createElement("button");
+      btnDesv.className = "btn btn-muted";
+      btnDesv.textContent = "Desvincular";
+
+      btnDesv.onclick = async () => {
+        if (btnDesv.classList.contains("loading")) return;
+
+        btnDesv.classList.add("loading");
+        btnDesv.textContent = "Desvinculando…";
+        btnDesv.style.cursor = "progress";
+        btnDesv.style.pointerEvents = "none";
+
+        showToast("Processando", "Desvinculando anúncio…", "loading");
+
+        try {
+          await apiPost("/anuncios/desvincular", { ml_item_id: a.ml_item_id });
+          await boot();
+          showToast("Desvinculado", "Anúncio desvinculado com sucesso.");
+        } catch {
+          showToast("Erro", "Falha ao desvincular anúncio.");
+        } finally {
+          btnDesv.classList.remove("loading");
+          btnDesv.textContent = "Desvincular";
+          btnDesv.style.cursor = "pointer";
+          btnDesv.style.pointerEvents = "auto";
+        }
+      };
+
+      actions.append(select, btnEditar, btnDesv);
+    } else {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-primary";
+      btn.textContent = "Vincular";
+
+      btn.onclick = async () => {
+        if (!select.value) return showToast("Atenção", "Selecione um SKU.");
+        showToast("Processando", "Vinculando anúncio…", "loading");
+
+        try {
+          await apiPost(`/sku/${select.value}/vincular`, { ml_item_id: a.ml_item_id });
+          await boot();
+          showToast("Sucesso", "Anúncio vinculado.");
+        } catch {
+          showToast("Erro", "Falha ao vincular anúncio.");
+        }
+      };
+
+      actions.append(select, btn);
+    }
+
+    tr.lastElementChild.appendChild(actions);
     tbody.appendChild(tr);
   });
 
   countValue.textContent = String(lista.length);
+  atualizarBulkBar();
 }
+
+/* =========================
+   BULK
+========================= */
+checkAll.onchange = () => {
+  selecionados.clear();
+  if (checkAll.checked) getListaVisivel().forEach((a) => selecionados.add(a.ml_item_id));
+  aplicarTudo();
+};
+
+function atualizarBulkBar() {
+  if (selecionados.size >= 2) {
+    bulkBar.classList.remove("hidden");
+    bulkCount.textContent = selecionados.size;
+
+    bulkSkuSelect.innerHTML = `<option value="">Selecione o SKU</option>`;
+    skus.forEach((s) => {
+      bulkSkuSelect.innerHTML += `<option value="${s.id}">${s.codigo} - ${s.nome}</option>`;
+    });
+  } else {
+    bulkBar.classList.add("hidden");
+  }
+}
+
+bulkCancelar.onclick = () => {
+  selecionados.clear();
+  checkAll.checked = false;
+  aplicarTudo();
+};
+
+bulkVincular.onclick = async () => {
+  if (selecionados.size < 2) return;
+  if (!bulkSkuSelect.value) return showToast("Atenção", "Selecione o SKU para vincular.");
+
+  showToast("Processando", "Vinculando anúncios selecionados…", "loading");
+
+  let ok = 0;
+  let fail = 0;
+
+  for (const ml_item_id of selecionados) {
+    try {
+      await apiPost(`/sku/${bulkSkuSelect.value}/vincular`, { ml_item_id });
+      ok += 1;
+    } catch {
+      fail += 1;
+    }
+    await sleep(40);
+  }
+
+  await boot();
+  showToast("Concluído", `Vínculos: ${ok} | Falhas: ${fail}`);
+};
+
+bulkDesvincular.onclick = async () => {
+  if (selecionados.size < 2) return;
+
+  showToast("Processando", "Desvinculando anúncios selecionados…", "loading");
+
+  let ok = 0;
+  let fail = 0;
+
+  for (const ml_item_id of selecionados) {
+    try {
+      await apiPost("/anuncios/desvincular", { ml_item_id });
+      ok += 1;
+    } catch {
+      fail += 1;
+    }
+    await sleep(40);
+  }
+
+  await boot();
+  showToast("Concluído", `Desvinculados: ${ok} | Falhas: ${fail}`);
+};
 
 /* =========================
    PIPELINE
@@ -274,22 +526,53 @@ function aplicarTudo() {
   render(getListaVisivel());
 }
 
-async function boot() {
-  showToast("Carregando", "Carregando anúncios do Mercado Livre…", "loading");
-  loadLastSync();
+/* =========================
+   SYNC
+========================= */
+btnSync.onclick = async () => {
+  try {
+    showToast("Atualizando", "Atualizando anúncios do Mercado Livre…", "loading");
+    btnSync.disabled = true;
+    renderSkeleton();
 
-  await carregarSkus();
-  await carregarAnuncios();
+    await apiPost("/ml/anuncios/sync");
+    setLastSyncNow();
 
-  // 🔥 AUTO-VÍNCULO
-  for (const a of anuncios) {
-    await tentarAutoVinculo(a);
+    await boot();
+    showToast("Concluído", "Anúncios atualizados com sucesso.");
+  } catch {
+    showToast("Erro", "Falha ao atualizar anúncios.");
+  } finally {
+    btnSync.disabled = false;
   }
+};
 
-  await carregarAnuncios();
-  aplicarTudo();
+/* =========================
+   BOOT
+========================= */
+async function boot() {
+  try {
+    showToast("Carregando", "Carregando anúncios do Mercado Livre…", "loading");
+    renderSkeleton();
+    loadLastSync();
 
-  document.getElementById("toastOverlay").classList.add("hidden");
+    await carregarSkus();
+    await carregarAnuncios();
+
+    // tenta auto-vincular sem travar a tela
+    const r = await autoVincularPorSellerSku();
+
+    if (r.vinculados > 0) {
+      // recarrega anúncios para refletir vínculos na tabela
+      await carregarAnuncios();
+      showToast("Auto-vínculo", `Vinculados: ${r.vinculados} | Tentados: ${r.tentados} | Erros: ${r.erros}`);
+    }
+
+    aplicarTudo();
+  } finally {
+    const overlay = document.getElementById("toastOverlay");
+    if (overlay) overlay.classList.add("hidden");
+  }
 }
 
 await boot();
