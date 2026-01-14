@@ -220,3 +220,13 @@ button:not(:disabled){
     margin-left: 0;
   }
 }
+td a {
+  color: #4f46e5;
+  font-weight: 600;
+  text-decoration: none;
+}
+td a:hover {
+  text-decoration: underline;
+}
+
+
