@@ -220,13 +220,27 @@ button:not(:disabled){
     margin-left: 0;
   }
 }
+/* Links do anúncio */
 td a {
-  color: #4f46e5;
+  color: #4F46E5;
   font-weight: 600;
   text-decoration: none;
 }
+
 td a:hover {
   text-decoration: underline;
 }
+
+/* Logística */
+.badge-auto {
+  background: #DCFCE7;
+  color: #166534;
+}
+
+.badge-manual {
+  background: #E0E7FF;
+  color: #3730A3;
+}
+
 
 
