@@ -8,542 +8,140 @@ renderLayout("anuncios");
 const page = document.getElementById("pageContent");
 
 /* =========================
-   TEMPLATE BASE
+   STATE
 ========================= */
-page.innerHTML = `
-<section class="pagebar anuncios-pagebar-final">
-
-  <!-- LINHA 1 -->
-  <div class="anuncios-top-row">
-    <h1 class="pagebar-title">Anúncios</h1>
-
-    <input
-      id="buscaAnuncio"
-      class="search-input anuncios-search"
-      placeholder="Buscar por qualquer informação..."
-    />
-
-    <div class="pagebar-last-sync">
-      Última atualização:
-      <strong id="lastSyncLabel">—</strong>
-    </div>
-  </div>
-
-  <!-- LINHA 2 -->
-  <div class="anuncios-bottom-row">
-    <label class="stock-filter">
-      <input type="checkbox" id="filterStockPositive">
-      Estoque positivo
-    </label>
-
-    <div class="filter-buttons" id="statusButtons">
-      <button data-status="todos" class="active">Todos</button>
-      <button data-status="ativo">Ativos</button>
-      <button data-status="pausado">Pausados</button>
-      <button data-status="vinculados">Vinculados</button>
-      <button data-status="sem_vinculo">Sem vínculo</button>
-    </div>
-
-    <button id="btnSync" class="btn btn-primary">
-      Atualizar anúncios
-    </button>
-
-    <div class="count-card">
-      <span>Total</span>
-      <strong id="countValue">0</strong>
-    </div>
-  </div>
-</section>
-
-<section id="bulkBar" class="anuncios-bulk hidden">
-  <strong><span id="bulkCount">0</span> selecionados</strong>
-
-  <div class="bulk-actions">
-    <select id="bulkSkuSelect">
-      <option value="">Selecione o SKU</option>
-    </select>
-
-    <button id="bulkVincular" class="btn btn-primary">Vincular</button>
-    <button id="bulkDesvincular" class="btn btn-muted">Desvincular</button>
-    <button id="bulkCancelar" class="btn btn-muted">Cancelar</button>
-  </div>
-</section>
-
-<div class="table-wrap anuncios-table-wrap">
-  <table id="tabelaAnuncios">
-    <thead>
-      <tr>
-        <th><input type="checkbox" id="checkAll"></th>
-        <th>Código ML</th>
-        <th>Anúncio</th>
-        <th>Tipo</th>
-        <th>Status</th>
-        <th>Estoque ML</th>
-        <th>SKU vinculado</th>
-        <th>Ação</th>
-      </tr>
-    </thead>
-    <tbody id="tabelaBody"></tbody>
-  </table>
-</div>
-`;
-
-/* =========================
-   TOAST
-========================= */
-function showToast(arg1, arg2, arg3) {
-  let title = "";
-  let message = "";
-  let type = "info";
-
-  if (typeof arg1 === "object" && arg1 !== null) {
-    title = arg1.title || "";
-    message = arg1.message || "";
-    type = arg1.type || "info";
-  } else {
-    title = arg1 || "";
-    message = arg2 || "";
-    type = arg3 || "info";
-  }
-
-  const overlay = document.getElementById("toastOverlay");
-  const titleEl = document.getElementById("toastTitle");
-  const msgEl = document.getElementById("toastMessage");
-  const okBtn = document.getElementById("toastOk");
-
-  if (!overlay || !titleEl || !msgEl || !okBtn) {
-    // fallback defensivo caso overlay não exista
-    console.log(`[TOAST] ${title} - ${message}`);
-    return;
-  }
-
-  titleEl.textContent = title;
-  msgEl.textContent = message;
-
-  okBtn.onclick = null;
-  okBtn.textContent = "OK";
-
-  overlay.classList.remove("hidden");
-
-  okBtn.onclick = () => overlay.classList.add("hidden");
-
-  if (type === "loading") return;
-
-  setTimeout(() => {
-    overlay.classList.add("hidden");
-  }, 1800);
-}
-
-/* =========================
-   ELEMENTOS / ESTADO
-========================= */
-const tbody = document.getElementById("tabelaBody");
-const busca = document.getElementById("buscaAnuncio");
-const filterStockPositive = document.getElementById("filterStockPositive");
-const statusButtons = document.getElementById("statusButtons");
-const countValue = document.getElementById("countValue");
-const checkAll = document.getElementById("checkAll");
-const btnSync = document.getElementById("btnSync");
-const lastSyncLabel = document.getElementById("lastSyncLabel");
-
-const bulkBar = document.getElementById("bulkBar");
-const bulkCount = document.getElementById("bulkCount");
-const bulkSkuSelect = document.getElementById("bulkSkuSelect");
-const bulkVincular = document.getElementById("bulkVincular");
-const bulkDesvincular = document.getElementById("bulkDesvincular");
-const bulkCancelar = document.getElementById("bulkCancelar");
-
 let anuncios = [];
 let skus = [];
-let statusAtual = "todos";
+
+let statusFilter = "todos";     // todos | ativo | pausado
+let vinculoFilter = "todos";    // todos | vinculados | sem_vinculo
+let logisticaFilter = "todos";  // todos | full | me
+
 let selecionados = new Set();
 
 /* =========================
    HELPERS
 ========================= */
-function formatDate(dt) {
-  return dt.toLocaleString("pt-BR");
-}
+const formatDate = (d) => d.toLocaleString("pt-BR");
 
-function setLastSyncNow() {
-  const now = new Date();
-  localStorage.setItem("ml_last_sync", now.toISOString());
-  lastSyncLabel.textContent = formatDate(now);
-}
-
-function loadLastSync() {
-  const v = localStorage.getItem("ml_last_sync");
-  if (v) lastSyncLabel.textContent = formatDate(new Date(v));
-}
-
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-/**
- * Normaliza SKU para bater "004213 - 5" == "004213-5" == "004213 -5"
- * - remove espaços
- * - padroniza hífen
- * - uppercase
- */
-function normalizeSku(v) {
-  if (!v) return "";
-  return String(v)
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, "")      // remove todos os espaços
-    .replace(/–|—/g, "-");    // troca hífens especiais por "-"
+function getLastUpdateFromData() {
+  if (!anuncios.length) return "—";
+  const max = Math.max(...anuncios.map(a => new Date(a.atualizado_em).getTime()));
+  return formatDate(new Date(max));
 }
 
 /* =========================
-   LOADER SKELETON
+   FILTRO CENTRAL
 ========================= */
-function renderSkeleton(rows = 8) {
-  tbody.innerHTML = "";
-  for (let i = 0; i < rows; i++) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><div class="skeleton skeleton-checkbox"></div></td>
-      <td><div class="skeleton skeleton-text"></div></td>
-      <td><div class="skeleton skeleton-text long"></div></td>
-      <td><div class="skeleton skeleton-text short"></div></td>
-      <td><div class="skeleton skeleton-text short"></div></td>
-      <td><div class="skeleton skeleton-text short"></div></td>
-      <td><div class="skeleton skeleton-text"></div></td>
-      <td><div class="skeleton skeleton-btn"></div></td>
-    `;
-    tbody.appendChild(tr);
-  }
-}
-
-/* =========================
-   CARREGAMENTO
-========================= */
-async function carregarSkus() {
-  skus = await apiGet("/sku");
-}
-
-async function carregarAnuncios() {
-  anuncios = await apiGet("/ml/anuncios");
-}
-
-/* =========================
-   AUTO-VÍNCULO (FRONT)
-   - tenta vincular anúncios sem vínculo cujo seller_sku bate com sku.codigo
-   - throttling para não explodir requests
-========================= */
-async function autoVincularPorSellerSku() {
-  // candidatos: sem vínculo + seller_sku presente
-  const candidatos = anuncios.filter((a) => !a.sku && a.seller_sku);
-
-  if (!candidatos.length) return { tentados: 0, vinculados: 0, erros: 0 };
-
-  // índice rápido por codigo normalizado
-  const idx = new Map();
-  skus.forEach((s) => idx.set(normalizeSku(s.codigo), s));
-
-  let tentados = 0;
-  let vinculados = 0;
-  let erros = 0;
-
-  // limite defensivo para não martelar o backend em carregamentos grandes
-  const LIMITE = 80;
-
-  for (const a of candidatos.slice(0, LIMITE)) {
-    const key = normalizeSku(a.seller_sku);
-    const skuMatch = idx.get(key);
-
-    if (!skuMatch) continue;
-
-    tentados += 1;
-
-    try {
-      await apiPost(`/sku/${skuMatch.id}/vincular`, { ml_item_id: a.ml_item_id });
-      vinculados += 1;
-    } catch (e) {
-      erros += 1;
-      // log defensivo (não interrompe a tela)
-      console.warn("[AUTO-VINCULO] falhou", {
-        ml_item_id: a.ml_item_id,
-        seller_sku: a.seller_sku,
-        sku_id: skuMatch.id,
-        err: String(e?.message || e)
-      });
-    }
-
-    // throttle leve (evita enxurrada e 429/instabilidade)
-    await sleep(60);
-  }
-
-  return { tentados, vinculados, erros };
-}
-
-/* =========================
-   FILTROS
-========================= */
-statusButtons.querySelectorAll("button").forEach((btn) => {
-  btn.onclick = () => {
-    statusButtons.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    statusAtual = btn.dataset.status;
-    aplicarTudo();
-  };
-});
-
-busca.oninput = aplicarTudo;
-filterStockPositive.onchange = aplicarTudo;
-
-function getListaVisivel() {
+function getListaFiltrada() {
   let lista = [...anuncios];
 
-  if (statusAtual === "vinculados") lista = lista.filter((a) => a.sku);
-  if (statusAtual === "sem_vinculo") lista = lista.filter((a) => !a.sku);
-  if (["ativo", "pausado"].includes(statusAtual)) lista = lista.filter((a) => a.status === statusAtual);
+  // status
+  if (statusFilter !== "todos") {
+    lista = lista.filter(a => a.status === statusFilter);
+  }
 
-  if (filterStockPositive.checked) lista = lista.filter((a) => Number(a.estoque_ml) > 0);
+  // vínculo
+  if (vinculoFilter === "vinculados") {
+    lista = lista.filter(a => a.sku);
+  }
+  if (vinculoFilter === "sem_vinculo") {
+    lista = lista.filter(a => !a.sku);
+  }
 
-  const termo = busca.value.toLowerCase().trim();
+  // logística
+  if (logisticaFilter === "full") {
+    lista = lista.filter(a => a.is_full);
+  }
+  if (logisticaFilter === "me") {
+    lista = lista.filter(a => !a.is_full);
+  }
 
-  return lista.filter((a) =>
-    `${a.ml_item_id} ${a.titulo} ${a.status} ${a.tipo_anuncio || ""} ${a.seller_sku || ""} ${a?.sku?.sku_codigo || ""}`
-      .toLowerCase()
-      .includes(termo)
-  );
+  return lista;
 }
 
 /* =========================
-   RENDER (com ações)
+   RENDER
 ========================= */
-function criarSelect(valorSkuId, disabled) {
-  const s = document.createElement("select");
-  s.disabled = disabled;
-  s.innerHTML = `<option value="">Selecione o SKU</option>`;
-  skus.forEach((k) => {
-    const opt = document.createElement("option");
-    opt.value = k.id;
-    opt.textContent = `${k.codigo} - ${k.nome}`;
-    if (String(valorSkuId) === String(k.id)) opt.selected = true;
-    s.appendChild(opt);
-  });
-  return s;
-}
-
-function render(lista) {
+function renderTabela(lista) {
+  const tbody = document.getElementById("tabelaBody");
   tbody.innerHTML = "";
 
   if (!lista.length) {
-    tbody.innerHTML = `<tr><td colspan="8">Nenhum anúncio encontrado</td></tr>`;
-    countValue.textContent = "0";
-    atualizarBulkBar();
+    tbody.innerHTML = `<tr><td colspan="9">Nenhum anúncio encontrado</td></tr>`;
     return;
   }
 
-  lista.forEach((a) => {
+  lista.forEach(a => {
+    const linkML = `https://produto.mercadolivre.com.br/${a.ml_item_id}`;
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><input type="checkbox" class="row-check"></td>
+      <td><input type="checkbox" /></td>
       <td>${a.ml_item_id}</td>
-      <td>${a.titulo}</td>
-      <td><span class="pill">${a.tipo_anuncio || "—"}</span></td>
+      <td>
+        <a href="${linkML}" target="_blank">${a.titulo}</a>
+      </td>
+      <td>
+        <span class="badge ${a.tipo_anuncio === "CATALOGO" ? "badge-catalogo" : "badge-lista"}">
+          ${a.tipo_anuncio}
+        </span>
+      </td>
+      <td>
+        <span class="badge ${a.is_full ? "badge-auto" : "badge-manual"}">
+          ${a.is_full ? "FULL" : "Mercado Envios"}
+        </span>
+      </td>
       <td>${a.status}</td>
       <td>${a.estoque_ml}</td>
       <td>${a?.sku?.sku_codigo ?? "—"}</td>
-      <td></td>
+      <td><!-- ações --></td>
     `;
-
-    const chk = tr.querySelector(".row-check");
-    chk.checked = selecionados.has(a.ml_item_id);
-    chk.onchange = () => {
-      chk.checked ? selecionados.add(a.ml_item_id) : selecionados.delete(a.ml_item_id);
-      atualizarBulkBar();
-    };
-
-    const actions = document.createElement("div");
-    actions.className = "actions";
-
-    // Se já está vinculado, trava select por padrão
-    const select = criarSelect(a?.sku?.id, !!a.sku);
-
-    if (a.sku) {
-      const btnEditar = document.createElement("button");
-      btnEditar.className = "btn btn-warning";
-      btnEditar.textContent = "Editar";
-
-      btnEditar.onclick = () => {
-        select.disabled = false;
-        btnEditar.textContent = "Salvar";
-        btnEditar.className = "btn btn-primary";
-
-        btnEditar.onclick = async () => {
-          if (!select.value) return showToast("Atenção", "Selecione um SKU.");
-          try {
-            showToast("Salvando", "Salvando alterações…", "loading");
-            await apiPost(`/sku/${select.value}/vincular`, { ml_item_id: a.ml_item_id });
-            await boot();
-            showToast("Sucesso", "Anúncio atualizado.");
-          } catch {
-            showToast("Erro", "Falha ao atualizar anúncio.");
-          }
-        };
-      };
-
-      const btnDesv = document.createElement("button");
-      btnDesv.className = "btn btn-muted";
-      btnDesv.textContent = "Desvincular";
-
-      btnDesv.onclick = async () => {
-        if (btnDesv.classList.contains("loading")) return;
-
-        btnDesv.classList.add("loading");
-        btnDesv.textContent = "Desvinculando…";
-        btnDesv.style.cursor = "progress";
-        btnDesv.style.pointerEvents = "none";
-
-        showToast("Processando", "Desvinculando anúncio…", "loading");
-
-        try {
-          await apiPost("/anuncios/desvincular", { ml_item_id: a.ml_item_id });
-          await boot();
-          showToast("Desvinculado", "Anúncio desvinculado com sucesso.");
-        } catch {
-          showToast("Erro", "Falha ao desvincular anúncio.");
-        } finally {
-          btnDesv.classList.remove("loading");
-          btnDesv.textContent = "Desvincular";
-          btnDesv.style.cursor = "pointer";
-          btnDesv.style.pointerEvents = "auto";
-        }
-      };
-
-      actions.append(select, btnEditar, btnDesv);
-    } else {
-      const btn = document.createElement("button");
-      btn.className = "btn btn-primary";
-      btn.textContent = "Vincular";
-
-      btn.onclick = async () => {
-        if (!select.value) return showToast("Atenção", "Selecione um SKU.");
-        showToast("Processando", "Vinculando anúncio…", "loading");
-
-        try {
-          await apiPost(`/sku/${select.value}/vincular`, { ml_item_id: a.ml_item_id });
-          await boot();
-          showToast("Sucesso", "Anúncio vinculado.");
-        } catch {
-          showToast("Erro", "Falha ao vincular anúncio.");
-        }
-      };
-
-      actions.append(select, btn);
-    }
-
-    tr.lastElementChild.appendChild(actions);
     tbody.appendChild(tr);
   });
 
-  countValue.textContent = String(lista.length);
-  atualizarBulkBar();
+  document.getElementById("countValue").textContent = lista.length;
 }
 
 /* =========================
-   BULK
+   EVENTOS DE FILTRO
 ========================= */
-checkAll.onchange = () => {
-  selecionados.clear();
-  if (checkAll.checked) getListaVisivel().forEach((a) => selecionados.add(a.ml_item_id));
-  aplicarTudo();
+document.querySelectorAll("[data-status]").forEach(btn => {
+  btn.onclick = () => {
+    statusFilter = btn.dataset.status;
+    aplicar();
+  };
+});
+
+document.getElementById("filterVinculados").onclick = () => {
+  vinculoFilter = "vinculados";
+  aplicar();
 };
 
-function atualizarBulkBar() {
-  if (selecionados.size >= 2) {
-    bulkBar.classList.remove("hidden");
-    bulkCount.textContent = selecionados.size;
-
-    bulkSkuSelect.innerHTML = `<option value="">Selecione o SKU</option>`;
-    skus.forEach((s) => {
-      bulkSkuSelect.innerHTML += `<option value="${s.id}">${s.codigo} - ${s.nome}</option>`;
-    });
-  } else {
-    bulkBar.classList.add("hidden");
-  }
-}
-
-bulkCancelar.onclick = () => {
-  selecionados.clear();
-  checkAll.checked = false;
-  aplicarTudo();
+document.getElementById("filterSemVinculo").onclick = () => {
+  vinculoFilter = "sem_vinculo";
+  aplicar();
 };
 
-bulkVincular.onclick = async () => {
-  if (selecionados.size < 2) return;
-  if (!bulkSkuSelect.value) return showToast("Atenção", "Selecione o SKU para vincular.");
-
-  showToast("Processando", "Vinculando anúncios selecionados…", "loading");
-
-  let ok = 0;
-  let fail = 0;
-
-  for (const ml_item_id of selecionados) {
-    try {
-      await apiPost(`/sku/${bulkSkuSelect.value}/vincular`, { ml_item_id });
-      ok += 1;
-    } catch {
-      fail += 1;
-    }
-    await sleep(40);
-  }
-
-  await boot();
-  showToast("Concluído", `Vínculos: ${ok} | Falhas: ${fail}`);
+document.getElementById("filterFull").onclick = () => {
+  logisticaFilter = "full";
+  aplicar();
 };
 
-bulkDesvincular.onclick = async () => {
-  if (selecionados.size < 2) return;
-
-  showToast("Processando", "Desvinculando anúncios selecionados…", "loading");
-
-  let ok = 0;
-  let fail = 0;
-
-  for (const ml_item_id of selecionados) {
-    try {
-      await apiPost("/anuncios/desvincular", { ml_item_id });
-      ok += 1;
-    } catch {
-      fail += 1;
-    }
-    await sleep(40);
-  }
-
-  await boot();
-  showToast("Concluído", `Desvinculados: ${ok} | Falhas: ${fail}`);
+document.getElementById("filterME").onclick = () => {
+  logisticaFilter = "me";
+  aplicar();
 };
-
-/* =========================
-   PIPELINE
-========================= */
-function aplicarTudo() {
-  render(getListaVisivel());
-}
 
 /* =========================
    SYNC
 ========================= */
-btnSync.onclick = async () => {
+document.getElementById("btnSync").onclick = async () => {
   try {
-    showToast("Atualizando", "Atualizando anúncios do Mercado Livre…", "loading");
-    btnSync.disabled = true;
-    renderSkeleton();
-
-    await apiPost("/ml/anuncios/sync");
-    setLastSyncNow();
-
+    await apiPost("/ml/sincronizar-anuncios");
     await boot();
-    showToast("Concluído", "Anúncios atualizados com sucesso.");
   } catch {
-    showToast("Erro", "Falha ao atualizar anúncios.");
-  } finally {
-    btnSync.disabled = false;
+    alert("Falha ao atualizar anúncios");
   }
 };
 
@@ -551,28 +149,15 @@ btnSync.onclick = async () => {
    BOOT
 ========================= */
 async function boot() {
-  try {
-    showToast("Carregando", "Carregando anúncios do Mercado Livre…", "loading");
-    renderSkeleton();
-    loadLastSync();
+  anuncios = await apiGet("/ml/anuncios");
+  skus = await apiGet("/sku");
 
-    await carregarSkus();
-    await carregarAnuncios();
+  document.getElementById("lastSyncLabel").textContent = getLastUpdateFromData();
+  aplicar();
+}
 
-    // tenta auto-vincular sem travar a tela
-    const r = await autoVincularPorSellerSku();
-
-    if (r.vinculados > 0) {
-      // recarrega anúncios para refletir vínculos na tabela
-      await carregarAnuncios();
-      showToast("Auto-vínculo", `Vinculados: ${r.vinculados} | Tentados: ${r.tentados} | Erros: ${r.erros}`);
-    }
-
-    aplicarTudo();
-  } finally {
-    const overlay = document.getElementById("toastOverlay");
-    if (overlay) overlay.classList.add("hidden");
-  }
+function aplicar() {
+  renderTabela(getListaFiltrada());
 }
 
 await boot();
