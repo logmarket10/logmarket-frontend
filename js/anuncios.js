@@ -2,40 +2,33 @@ import { apiGet, apiPost } from "./api.js";
 import { requireAuth } from "./guard.js";
 import { renderLayout } from "./layout.js";
 
-/* =========================
-   AUTH + LAYOUT
-========================= */
 requireAuth();
 renderLayout("anuncios");
 
 const page = document.getElementById("pageContent");
 
-/* =========================
-   TEMPLATE
-========================= */
 page.innerHTML = `
 <div class="anuncios-page">
 
-  <!-- PAGE BAR -->
-  <section class="pagebar">
-    <div class="pagebar-title">Anúncios Mercado Livre</div>
+  <div class="anuncios-header">
+    <h1>Anúncios Mercado Livre</h1>
 
-    <div class="pagebar-controls">
-      <input id="searchInput" class="search-input" placeholder="Buscar anúncio..." />
+    <div class="anuncios-actions">
+      <input id="searchInput" placeholder="Buscar anúncio..." />
 
-      <select id="filterStatus" class="select">
+      <select id="filterStatus">
         <option value="">Todos</option>
         <option value="ativo">Ativos</option>
         <option value="pausado">Pausados</option>
       </select>
 
-      <select id="filterVinculo" class="select">
+      <select id="filterVinculo">
         <option value="">Todos</option>
         <option value="vinculado">Vinculados</option>
         <option value="sem-vinculo">Sem vínculo</option>
       </select>
 
-      <select id="filterFull" class="select">
+      <select id="filterFull">
         <option value="">Todos</option>
         <option value="full">FULL</option>
         <option value="nao-full">Não FULL</option>
@@ -45,15 +38,14 @@ page.innerHTML = `
         Atualizar anúncios
       </button>
     </div>
+  </div>
 
-    <div class="pagebar-info">
-      Última atualização:
-      <strong id="lastSyncLabel">—</strong>
-    </div>
-  </section>
+  <div class="anuncios-meta">
+    Última atualização:
+    <strong id="lastSyncLabel">—</strong>
+  </div>
 
-  <!-- TABLE -->
-  <table class="table">
+  <table class="anuncios-table">
     <thead>
       <tr>
         <th>Título</th>
@@ -72,31 +64,6 @@ page.innerHTML = `
 `;
 
 /* =========================
-   OVERLAY
-========================= */
-const overlay = document.createElement("div");
-overlay.id = "syncOverlay";
-overlay.style.cssText = `
-  position: fixed;
-  inset: 0;
-  background: rgba(255,255,255,.85);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-`;
-overlay.innerHTML = `
-  <div style="text-align:center">
-    <h2>Atualizando anúncios…</h2>
-    <p>Aguarde, isso pode levar alguns minutos</p>
-  </div>
-`;
-document.body.appendChild(overlay);
-
-const showOverlay = () => overlay.style.display = "flex";
-const hideOverlay = () => overlay.style.display = "none";
-
-/* =========================
    STATE
 ========================= */
 let anuncios = [];
@@ -104,18 +71,10 @@ let anuncios = [];
 /* =========================
    HELPERS
 ========================= */
-function formatDate(dt) {
-  return dt.toLocaleString("pt-BR");
-}
-
-function calcLastSync() {
-  if (!anuncios.length) return "—";
-  const max = Math.max(
-    ...anuncios
-      .filter(a => a.atualizado_em)
-      .map(a => new Date(a.atualizado_em).getTime())
-  );
-  return max ? formatDate(new Date(max)) : "—";
+function formatDateSafe(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleString("pt-BR");
 }
 
 /* =========================
@@ -133,13 +92,10 @@ function render() {
   const filtrados = anuncios.filter(a => {
     if (search && !a.titulo.toLowerCase().includes(search)) return false;
     if (status && a.status !== status) return false;
-
     if (vinculo === "vinculado" && !a.sku) return false;
     if (vinculo === "sem-vinculo" && a.sku) return false;
-
     if (full === "full" && !a.is_full) return false;
     if (full === "nao-full" && a.is_full) return false;
-
     return true;
   });
 
@@ -147,16 +103,22 @@ function render() {
     const tr = document.createElement("tr");
 
     tr.innerHTML = `
-      <td>${a.titulo}</td>
+      <td class="titulo">${a.titulo}</td>
       <td>${a.sku ? a.sku.sku_codigo : "—"}</td>
       <td>${a.tipo_anuncio}</td>
-      <td>${a.status}</td>
+      <td>
+        <span class="status ${a.status}">
+          ${a.status}
+        </span>
+      </td>
       <td>${a.estoque_ml ?? "—"}</td>
-      <td>${a.is_full ? "✔" : "—"}</td>
+      <td>
+        ${a.is_full ? `<span class="badge-full">FULL</span>` : "—"}
+      </td>
       <td>
         ${
           a.sku
-            ? `<button class="btn-link" data-unlink="${a.ml_item_id}">Desvincular</button>`
+            ? `<button class="btn-link danger" data-unlink="${a.ml_item_id}">Desvincular</button>`
             : `<button class="btn-link" data-link="${a.ml_item_id}">Vincular</button>`
         }
       </td>
@@ -165,18 +127,21 @@ function render() {
     tbody.appendChild(tr);
   }
 
-  // ações
+  const last = anuncios
+    .map(a => a.atualizado_em)
+    .filter(Boolean)
+    .sort()
+    .pop();
+
+  document.getElementById("lastSyncLabel").textContent = formatDateSafe(last);
+
   tbody.querySelectorAll("[data-unlink]").forEach(btn => {
     btn.onclick = async () => {
       if (!confirm("Deseja desvincular este anúncio?")) return;
-      await apiPost("/anuncios/desvincular", {
-        ml_item_id: btn.dataset.unlink
-      });
+      await apiPost("/anuncios/desvincular", { ml_item_id: btn.dataset.unlink });
       await boot();
     };
   });
-
-  document.getElementById("lastSyncLabel").textContent = calcLastSync();
 }
 
 /* =========================
@@ -190,39 +155,23 @@ async function boot() {
 /* =========================
    EVENTS
 ========================= */
-document.getElementById("searchInput").oninput = render;
-document.getElementById("filterStatus").onchange = render;
-document.getElementById("filterVinculo").onchange = render;
-document.getElementById("filterFull").onchange = render;
+["searchInput", "filterStatus", "filterVinculo", "filterFull"]
+  .forEach(id => document.getElementById(id).onchange = render);
 
 /* =========================
    SYNC
 ========================= */
 document.getElementById("btnSync").onclick = async () => {
-  try {
-    showOverlay();
+  const { job_id } = await apiPost("/ml/sincronizar-anuncios");
 
-    const { job_id } = await apiPost("/ml/sincronizar-anuncios");
-
-    while (true) {
-      await new Promise(r => setTimeout(r, 2000));
-      const job = await apiGet(`/jobs/${job_id}`);
-
-      if (job.status === "SUCESSO") break;
-      if (job.status === "ERRO") throw new Error(job.erro);
-    }
-
-    await boot();
-
-  } catch (e) {
-    alert("Falha ao atualizar anúncios");
-    console.error(e);
-  } finally {
-    hideOverlay();
+  while (true) {
+    await new Promise(r => setTimeout(r, 2000));
+    const job = await apiGet(`/jobs/${job_id}`);
+    if (job.status === "SUCESSO") break;
+    if (job.status === "ERRO") return alert(job.erro);
   }
+
+  await boot();
 };
 
-/* =========================
-   INIT
-========================= */
 boot();
