@@ -11,13 +11,82 @@ renderLayout("anuncios");
 const page = document.getElementById("pageContent");
 
 /* =========================
+   TEMPLATE
+========================= */
+page.innerHTML = `
+<section class="pagebar anuncios-pagebar-final">
+  <div class="anuncios-top-row">
+    <h1 class="pagebar-title">Anúncios</h1>
+
+    <input
+      id="buscaAnuncio"
+      class="search-input anuncios-search"
+      placeholder="Buscar por qualquer informação..."
+    />
+
+    <div class="pagebar-last-sync">
+      Última atualização:
+      <strong id="lastSyncLabel">—</strong>
+    </div>
+  </div>
+
+  <div class="anuncios-bottom-row">
+    <label class="stock-filter">
+      <input type="checkbox" id="filterStockPositive">
+      Estoque positivo
+    </label>
+
+    <div class="filter-buttons" id="statusButtons">
+      <button data-filter="todos" class="active">Todos</button>
+      <button data-filter="ativo">Ativos</button>
+      <button data-filter="pausado">Pausados</button>
+      <button data-filter="vinculados">Vinculados</button>
+      <button data-filter="sem_vinculo">Sem vínculo</button>
+      <button data-filter="full">FULL</button>
+      <button data-filter="me">Mercado Envios</button>
+    </div>
+
+    <button id="btnSync" class="btn btn-primary">
+      Atualizar anúncios
+    </button>
+
+    <div class="count-card">
+      <span>Total</span>
+      <strong id="countValue">0</strong>
+    </div>
+  </div>
+</section>
+
+<div class="table-wrap anuncios-table-wrap">
+  <table id="tabelaAnuncios">
+    <thead>
+      <tr>
+        <th>Código ML</th>
+        <th>Anúncio</th>
+        <th>Tipo</th>
+        <th>Logística</th>
+        <th>Status</th>
+        <th>Estoque ML</th>
+        <th>SKU vinculado</th>
+        <th>Ação</th>
+      </tr>
+    </thead>
+    <tbody id="tabelaBody"></tbody>
+  </table>
+</div>
+`;
+
+/* =========================
    STATE
 ========================= */
 let anuncios = [];
-let lastJobId = null;
+
+let statusFilter = "todos";
+let vinculoFilter = "todos";
+let logisticaFilter = "todos";
 
 /* =========================
-   ELEMENTOS
+   ELEMENTOS (APÓS HTML)
 ========================= */
 const tbody = document.getElementById("tabelaBody");
 const busca = document.getElementById("buscaAnuncio");
@@ -27,42 +96,26 @@ const filterStockPositive = document.getElementById("filterStockPositive");
 const btnSync = document.getElementById("btnSync");
 
 /* =========================
-   OVERLAY (MENSAGEM CENTRAL)
+   HELPERS
 ========================= */
-function showOverlay(msg) {
-  let el = document.getElementById("overlaySync");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "overlaySync";
-    el.style = `
-      position: fixed;
-      inset: 0;
-      background: rgba(255,255,255,.75);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      font-size: 18px;
-      font-weight: 600;
-      color: #4f46e5;
-    `;
-    document.body.appendChild(el);
-  }
-  el.textContent = msg;
-}
+const formatDate = d => d.toLocaleString("pt-BR");
 
-function hideOverlay() {
-  const el = document.getElementById("overlaySync");
-  if (el) el.remove();
+function calcLastSync() {
+  if (!anuncios.length) return "—";
+
+  const datas = anuncios
+    .map(a => a.atualizado_em)
+    .filter(Boolean)
+    .map(d => new Date(d).getTime());
+
+  if (!datas.length) return "—";
+
+  return formatDate(new Date(Math.max(...datas)));
 }
 
 /* =========================
-   FILTROS (MANTÉM SEU PADRÃO)
+   FILTROS
 ========================= */
-let statusFilter = "todos";
-let vinculoFilter = "todos";
-let logisticaFilter = "todos";
-
 document.querySelectorAll("#statusButtons button").forEach(btn => {
   btn.onclick = () => {
     document
@@ -85,11 +138,8 @@ document.querySelectorAll("#statusButtons button").forEach(btn => {
   };
 });
 
-busca.oninput = render;
-filterStockPositive.onchange = render;
-
 /* =========================
-   FILTRAGEM
+   FILTRAGEM CENTRAL
 ========================= */
 function getListaFiltrada() {
   let lista = [...anuncios];
@@ -122,7 +172,7 @@ function getListaFiltrada() {
 }
 
 /* =========================
-   RENDER (TABELA)
+   RENDER
 ========================= */
 function render() {
   const lista = getListaFiltrada();
@@ -154,80 +204,43 @@ function render() {
       <td>${a.status}</td>
       <td>${a.estoque_ml}</td>
       <td>${a?.sku?.sku_codigo ?? "—"}</td>
-      <td>
-        ${
-          a.sku
-            ? `<button class="btn-link danger" data-unlink="${a.ml_item_id}">Desvincular</button>`
-            : `<button class="btn-link" data-link="${a.ml_item_id}">Vincular</button>`
-        }
-      </td>
+      <td>—</td>
     `;
     tbody.appendChild(tr);
   });
 
   countValue.textContent = lista.length;
-
-  // ações
-  tbody.querySelectorAll("[data-unlink]").forEach(btn => {
-    btn.onclick = async () => {
-      if (!confirm("Deseja desvincular este anúncio?")) return;
-      await apiPost("/anuncios/desvincular", {
-        ml_item_id: btn.dataset.unlink
-      });
-      await boot();
-    };
-  });
 }
 
 /* =========================
-   SYNC (BOTÃO ATUALIZAR)
+   EVENTOS (AGORA SEGUROS)
+========================= */
+busca.addEventListener("input", render);
+filterStockPositive.addEventListener("change", render);
+
+/* =========================
+   SYNC
 ========================= */
 btnSync.onclick = async () => {
   try {
     btnSync.disabled = true;
-    showOverlay("Atualizando anúncios…");
-
-    const { job_id } = await apiPost("/ml/sincronizar-anuncios");
-    lastJobId = job_id;
-
-    await acompanharJob(job_id);
-
+    btnSync.textContent = "Atualizando...";
+    await apiPost("/ml/sincronizar-anuncios");
     await boot();
-  } catch (e) {
+  } catch {
     alert("Falha ao atualizar anúncios");
   } finally {
-    hideOverlay();
+    btnSync.textContent = "Atualizar anúncios";
     btnSync.disabled = false;
   }
 };
-
-/* =========================
-   ACOMPANHA JOB
-========================= */
-async function acompanharJob(jobId) {
-  while (true) {
-    await new Promise(r => setTimeout(r, 2000));
-    const job = await apiGet(`/jobs/${jobId}`);
-
-    if (job.status === "SUCESSO") {
-      if (job.finalizado_em) {
-        lastSyncLabel.textContent =
-          new Date(job.finalizado_em).toLocaleString("pt-BR");
-      }
-      return;
-    }
-
-    if (job.status === "ERRO") {
-      throw new Error(job.erro);
-    }
-  }
-}
 
 /* =========================
    BOOT
 ========================= */
 async function boot() {
   anuncios = await apiGet("/ml/anuncios");
+  lastSyncLabel.textContent = calcLastSync();
   render();
 }
 
