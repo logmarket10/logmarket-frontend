@@ -1,120 +1,159 @@
+import { renderLayout } from "./layout.js";
 import { apiGet, apiPost } from "./api.js";
 import { requireAuth } from "./guard.js";
-import { renderLayout } from "./layout.js";
 
+/* =========================
+   BOOTSTRAP
+========================= */
 requireAuth();
 renderLayout("anuncios");
 
 const page = document.getElementById("pageContent");
 
-page.innerHTML = `
-<div class="anuncios-page">
-
-  <div class="anuncios-header">
-    <h1>Anúncios Mercado Livre</h1>
-
-    <div class="anuncios-actions">
-      <input id="searchInput" placeholder="Buscar anúncio..." />
-
-      <select id="filterStatus">
-        <option value="">Todos</option>
-        <option value="ativo">Ativos</option>
-        <option value="pausado">Pausados</option>
-      </select>
-
-      <select id="filterVinculo">
-        <option value="">Todos</option>
-        <option value="vinculado">Vinculados</option>
-        <option value="sem-vinculo">Sem vínculo</option>
-      </select>
-
-      <select id="filterFull">
-        <option value="">Todos</option>
-        <option value="full">FULL</option>
-        <option value="nao-full">Não FULL</option>
-      </select>
-
-      <button id="btnSync" class="btn-primary">
-        Atualizar anúncios
-      </button>
-    </div>
-  </div>
-
-  <div class="anuncios-meta">
-    Última atualização:
-    <strong id="lastSyncLabel">—</strong>
-  </div>
-
-  <table class="anuncios-table">
-    <thead>
-      <tr>
-        <th>Título</th>
-        <th>SKU</th>
-        <th>Tipo</th>
-        <th>Status</th>
-        <th>Estoque</th>
-        <th>FULL</th>
-        <th>Ação</th>
-      </tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-  </table>
-
-</div>
-`;
-
 /* =========================
    STATE
 ========================= */
 let anuncios = [];
+let lastJobId = null;
 
 /* =========================
-   HELPERS
+   ELEMENTOS
 ========================= */
-function formatDateSafe(value) {
-  if (!value) return "—";
-  const d = new Date(value);
-  return isNaN(d.getTime()) ? "—" : d.toLocaleString("pt-BR");
+const tbody = document.getElementById("tabelaBody");
+const busca = document.getElementById("buscaAnuncio");
+const countValue = document.getElementById("countValue");
+const lastSyncLabel = document.getElementById("lastSyncLabel");
+const filterStockPositive = document.getElementById("filterStockPositive");
+const btnSync = document.getElementById("btnSync");
+
+/* =========================
+   OVERLAY (MENSAGEM CENTRAL)
+========================= */
+function showOverlay(msg) {
+  let el = document.getElementById("overlaySync");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "overlaySync";
+    el.style = `
+      position: fixed;
+      inset: 0;
+      background: rgba(255,255,255,.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      font-size: 18px;
+      font-weight: 600;
+      color: #4f46e5;
+    `;
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+}
+
+function hideOverlay() {
+  const el = document.getElementById("overlaySync");
+  if (el) el.remove();
 }
 
 /* =========================
-   RENDER
+   FILTROS (MANTÉM SEU PADRÃO)
+========================= */
+let statusFilter = "todos";
+let vinculoFilter = "todos";
+let logisticaFilter = "todos";
+
+document.querySelectorAll("#statusButtons button").forEach(btn => {
+  btn.onclick = () => {
+    document
+      .querySelectorAll("#statusButtons button")
+      .forEach(b => b.classList.remove("active"));
+
+    btn.classList.add("active");
+
+    const f = btn.dataset.filter;
+
+    statusFilter = "todos";
+    vinculoFilter = "todos";
+    logisticaFilter = "todos";
+
+    if (f === "ativo" || f === "pausado") statusFilter = f;
+    if (f === "vinculados" || f === "sem_vinculo") vinculoFilter = f;
+    if (f === "full" || f === "me") logisticaFilter = f;
+
+    render();
+  };
+});
+
+busca.oninput = render;
+filterStockPositive.onchange = render;
+
+/* =========================
+   FILTRAGEM
+========================= */
+function getListaFiltrada() {
+  let lista = [...anuncios];
+
+  if (statusFilter !== "todos")
+    lista = lista.filter(a => a.status === statusFilter);
+
+  if (vinculoFilter === "vinculados")
+    lista = lista.filter(a => a.sku);
+
+  if (vinculoFilter === "sem_vinculo")
+    lista = lista.filter(a => !a.sku);
+
+  if (logisticaFilter === "full")
+    lista = lista.filter(a => a.is_full);
+
+  if (logisticaFilter === "me")
+    lista = lista.filter(a => !a.is_full);
+
+  if (filterStockPositive.checked)
+    lista = lista.filter(a => Number(a.estoque_ml) > 0);
+
+  const termo = busca.value.toLowerCase();
+
+  return lista.filter(a =>
+    `${a.ml_item_id} ${a.titulo} ${a.status} ${a.seller_sku || ""} ${a?.sku?.sku_codigo || ""}`
+      .toLowerCase()
+      .includes(termo)
+  );
+}
+
+/* =========================
+   RENDER (TABELA)
 ========================= */
 function render() {
-  const tbody = document.getElementById("tbody");
+  const lista = getListaFiltrada();
   tbody.innerHTML = "";
 
-  const search = document.getElementById("searchInput").value.toLowerCase();
-  const status = document.getElementById("filterStatus").value;
-  const vinculo = document.getElementById("filterVinculo").value;
-  const full = document.getElementById("filterFull").value;
+  if (!lista.length) {
+    tbody.innerHTML = `<tr><td colspan="8">Nenhum anúncio encontrado</td></tr>`;
+    countValue.textContent = "0";
+    return;
+  }
 
-  const filtrados = anuncios.filter(a => {
-    if (search && !a.titulo.toLowerCase().includes(search)) return false;
-    if (status && a.status !== status) return false;
-    if (vinculo === "vinculado" && !a.sku) return false;
-    if (vinculo === "sem-vinculo" && a.sku) return false;
-    if (full === "full" && !a.is_full) return false;
-    if (full === "nao-full" && a.is_full) return false;
-    return true;
-  });
+  lista.forEach(a => {
+    const linkML = `https://produto.mercadolivre.com.br/${a.ml_item_id}`;
 
-  for (const a of filtrados) {
     const tr = document.createElement("tr");
-
     tr.innerHTML = `
-      <td class="titulo">${a.titulo}</td>
-      <td>${a.sku ? a.sku.sku_codigo : "—"}</td>
-      <td>${a.tipo_anuncio}</td>
+      <td>${a.ml_item_id}</td>
+      <td><a href="${linkML}" target="_blank">${a.titulo}</a></td>
       <td>
-        <span class="status ${a.status}">
-          ${a.status}
+        <span class="badge ${a.tipo_anuncio === "CATALOGO" ? "badge-catalogo" : "badge-lista"}">
+          ${a.tipo_anuncio}
         </span>
       </td>
-      <td>${a.estoque_ml ?? "—"}</td>
       <td>
-        ${a.is_full ? `<span class="badge-full">FULL</span>` : "—"}
+        <span class="badge ${a.is_full ? "badge-auto" : "badge-manual"}">
+          ${a.is_full ? "FULL" : "Mercado Envios"}
+        </span>
       </td>
+      <td>${a.status}</td>
+      <td>${a.estoque_ml}</td>
+      <td>${a?.sku?.sku_codigo ?? "—"}</td>
       <td>
         ${
           a.sku
@@ -123,55 +162,73 @@ function render() {
         }
       </td>
     `;
-
     tbody.appendChild(tr);
-  }
+  });
 
-  const last = anuncios
-    .map(a => a.atualizado_em)
-    .filter(Boolean)
-    .sort()
-    .pop();
+  countValue.textContent = lista.length;
 
-  document.getElementById("lastSyncLabel").textContent = formatDateSafe(last);
-
+  // ações
   tbody.querySelectorAll("[data-unlink]").forEach(btn => {
     btn.onclick = async () => {
       if (!confirm("Deseja desvincular este anúncio?")) return;
-      await apiPost("/anuncios/desvincular", { ml_item_id: btn.dataset.unlink });
+      await apiPost("/anuncios/desvincular", {
+        ml_item_id: btn.dataset.unlink
+      });
       await boot();
     };
   });
 }
 
 /* =========================
-   LOAD
+   SYNC (BOTÃO ATUALIZAR)
+========================= */
+btnSync.onclick = async () => {
+  try {
+    btnSync.disabled = true;
+    showOverlay("Atualizando anúncios…");
+
+    const { job_id } = await apiPost("/ml/sincronizar-anuncios");
+    lastJobId = job_id;
+
+    await acompanharJob(job_id);
+
+    await boot();
+  } catch (e) {
+    alert("Falha ao atualizar anúncios");
+  } finally {
+    hideOverlay();
+    btnSync.disabled = false;
+  }
+};
+
+/* =========================
+   ACOMPANHA JOB
+========================= */
+async function acompanharJob(jobId) {
+  while (true) {
+    await new Promise(r => setTimeout(r, 2000));
+    const job = await apiGet(`/jobs/${jobId}`);
+
+    if (job.status === "SUCESSO") {
+      if (job.finalizado_em) {
+        lastSyncLabel.textContent =
+          new Date(job.finalizado_em).toLocaleString("pt-BR");
+      }
+      return;
+    }
+
+    if (job.status === "ERRO") {
+      throw new Error(job.erro);
+    }
+  }
+}
+
+/* =========================
+   BOOT
 ========================= */
 async function boot() {
   anuncios = await apiGet("/ml/anuncios");
   render();
 }
-
-/* =========================
-   EVENTS
-========================= */
-["searchInput", "filterStatus", "filterVinculo", "filterFull"]
-  .forEach(id => document.getElementById(id).onchange = render);
-
-/* =========================
-   SYNC
-========================= */
-document.getElementById("btnSync").onclick = async () => {
-  const { job_id } = await apiPost("/ml/sincronizar-anuncios");
-
-  while (true) {
-    await new Promise(r => setTimeout(r, 2000));
-    const job = await apiGet(`/jobs/${job_id}`);
-    if (job.status === "SUCESSO") break;
-    if (job.status === "ERRO") return alert(job.erro);
-  }
-
-  await boot();
-};
 
 boot();
