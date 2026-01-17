@@ -2,23 +2,69 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
-  <title>LogMarket • Anúncios</title>
-  <link rel="stylesheet" href="css/app.css" />
-  <link rel="stylesheet" href="css/anuncios.css" />
-</head>
-<body>
-  <div id="appRoot"></div>
+  <title>Anúncios | LogMarket</title>
 
-  <!-- TOAST -->
-  <div id="toastOverlay" class="toast-overlay hidden">
-    <div class="toast">
-      <h3 id="toastTitle"></h3>
-      <p id="toastMessage"></p>
-      <button id="toastOk">OK</button>
+  <link rel="stylesheet" href="/assets/css/app.css">
+  <link rel="stylesheet" href="/assets/css/anuncios.css">
+</head>
+
+<body>
+  <div id="app">
+
+    <!-- HEADER / SIDEBAR vêm do layout global -->
+    <main id="pageContent" class="anuncios-page">
+
+      <!-- HEADER -->
+      <section class="anuncios-header">
+        <h1>Anúncios</h1>
+
+        <div class="anuncios-actions">
+          <input
+            id="busca"
+            type="text"
+            placeholder="Buscar por código, título ou SKU..."
+          />
+
+          <button id="btnSync" class="btn-primary">
+            Atualizar anúncios
+          </button>
+        </div>
+
+        <div class="anuncios-meta">
+          <span id="ultimaAtualizacao">Última atualização: —</span>
+          <strong>Total: <span id="total">0</span></strong>
+        </div>
+      </section>
+
+      <!-- LISTA -->
+      <section class="anuncios-list">
+        <table>
+          <thead>
+            <tr>
+              <th>Código ML</th>
+              <th>Anúncio</th>
+              <th>Tipo</th>
+              <th>Logística</th>
+              <th>Status</th>
+              <th>Estoque</th>
+              <th>SKU</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- OVERLAY -->
+  <div id="overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <p id="overlayMsg">Processando...</p>
     </div>
   </div>
 
-  <script type="module" src="js/anuncios.js"></script>
+  <script type="module" src="/assets/js/anuncios.js"></script>
 </body>
-
 </html>
