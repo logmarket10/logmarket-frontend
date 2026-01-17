@@ -2,18 +2,23 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
-  <title>Anúncios</title>
-
-  <!-- CSS GLOBAL -->
+  <title>LogMarket • Anúncios</title>
   <link rel="stylesheet" href="css/app.css" />
   <link rel="stylesheet" href="css/anuncios.css" />
 </head>
-
 <body>
-  <!-- ⚠️ IMPORTANTE: NÃO COLOQUE CONTEÚDO AQUI -->
+  <div id="appRoot"></div>
 
-  <!-- O layout.js vai injetar tudo -->
-  <script src="js/layout.js"></script>
-  <script src="js/anuncios.js"></script>
+  <!-- TOAST -->
+  <div id="toastOverlay" class="toast-overlay hidden">
+    <div class="toast">
+      <h3 id="toastTitle"></h3>
+      <p id="toastMessage"></p>
+      <button id="toastOk">OK</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/anuncios.js"></script>
 </body>
+
 </html>
