@@ -1,9 +1,15 @@
+import { renderLayout } from "./layout.js";
 import { apiGet, apiPost } from "./api.js";
 import { requireAuth } from "./guard.js";
-import { renderLayout } from "./layout.js";
 
 requireAuth();
 renderLayout("anuncios");
+
+const page = document.getElementById("pageContent");
+
+if (!page) {
+  throw new Error("pageContent não encontrado. Verifique o layout.");
+}
 
 const tbody = document.getElementById("tbody");
 const busca = document.getElementById("busca");
@@ -124,3 +130,4 @@ busca.addEventListener("input", render);
 btnSync.addEventListener("click", sincronizar);
 
 carregarAnuncios();
+
