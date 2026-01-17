@@ -2,71 +2,18 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
-  <title>Anúncios | LogMarket</title>
+  <title>Anúncios</title>
 
-  <link rel="stylesheet" href="css/app.css">
-  <link rel="stylesheet" href="css/anuncios.css"> 
+  <!-- CSS GLOBAL -->
+  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="css/anuncios.css" />
 </head>
 
 <body>
-  <div id="app">
+  <!-- ⚠️ IMPORTANTE: NÃO COLOQUE CONTEÚDO AQUI -->
 
-    <!-- HEADER / SIDEBAR vêm do layout global -->
-    <main id="pageContent" class="anuncios-page">
-
-      <!-- HEADER -->
-      <section class="anuncios-header">
-        <h1>Anúncios</h1>
-
-        <div class="anuncios-actions">
-          <input
-            id="busca"
-            type="text"
-            placeholder="Buscar por código, título ou SKU..."
-          />
-
-          <button id="btnSync" class="btn-primary">
-            Atualizar anúncios
-          </button>
-        </div>
-
-        <div class="anuncios-meta">
-          <span id="ultimaAtualizacao">Última atualização: —</span>
-          <strong>Total: <span id="total">0</span></strong>
-        </div>
-      </section>
-
-      <!-- LISTA -->
-      <section class="anuncios-list">
-        <table>
-          <thead>
-            <tr>
-              <th>Código ML</th>
-              <th>Anúncio</th>
-              <th>Tipo</th>
-              <th>Logística</th>
-              <th>Status</th>
-              <th>Estoque</th>
-              <th>SKU</th>
-              <th>Ação</th>
-            </tr>
-          </thead>
-          <tbody id="tbody"></tbody>
-        </table>
-      </section>
-
-    </main>
-  </div>
-
-  <!-- OVERLAY -->
-  <div id="overlay" class="overlay hidden">
-    <div class="overlay-box">
-      <p id="overlayMsg">Processando...</p>
-    </div>
-  </div>
-
-  <script type="module" src="js/anuncios.js"></script>
+  <!-- O layout.js vai injetar tudo -->
+  <script src="js/layout.js"></script>
+  <script src="js/anuncios.js"></script>
 </body>
 </html>
-
-
