@@ -134,9 +134,42 @@ btnConnectML.onclick = () => {
   redirectMercadoLivreAuth();
 };
 
-btnDisconnectML.onclick = () => {
-  alert("Desconexão será implementada no próximo upgrade.");
-};
+/**
+ * Desconectar Mercado Livre (REAL)
+ */
+async function desconectarMercadoLivre() {
+  const ok = confirm(
+    "Ao desconectar, você precisará autorizar novamente o Mercado Livre.\n\nDeseja continuar?"
+  );
+
+  if (!ok) return;
+
+  try {
+    btnDisconnectML.disabled = true;
+    btnDisconnectML.textContent = "Desconectando...";
+
+    await apiGet("/integracoes/mercadolivre/disconnect", {
+      method: "POST"
+    });
+
+    // limpa cache local
+    localStorage.removeItem(CACHE_KEY);
+
+    // atualiza UI imediatamente
+    renderStatus({ connected: false });
+
+    alert("Mercado Livre desconectado com sucesso.");
+
+  } catch (e) {
+    alert("Falha ao desconectar Mercado Livre.");
+    console.error(e);
+  } finally {
+    btnDisconnectML.disabled = false;
+    btnDisconnectML.textContent = "Desconectar";
+  }
+}
+
 
 // 🚀 start
 carregarStatus();
+
